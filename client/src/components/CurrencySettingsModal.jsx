@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Coins, X, Check, RefreshCw } from 'lucide-react';
 
-export default function CurrencySettingsModal({ isOpen, onClose }) {
+export default React.memo(function CurrencySettingsModal({ isOpen, onClose }) {
   const { nation, updateCurrencySettings } = useAuth();
   const [currencyName, setCurrencyName] = useState('');
   const [currencySymbol, setCurrencySymbol] = useState('');
@@ -19,20 +19,19 @@ export default function CurrencySettingsModal({ isOpen, onClose }) {
     }
   }, [nation]);
 
-  if (!isOpen || !nation) return null;
-
-  const handleRateChange = (e) => {
-    let val = e.target.value;
+  const handleRateChange = useCallback((e) => {
+    const val = e.target.value;
     if (val.includes('.')) {
-      const [whole, decimals] = val.split('.');
-      if (decimals.length > 2) {
-        val = `${whole}.${decimals.slice(0, 2)}`;
+      const parts = val.split('.');
+      if (parts[1] && parts[1].length > 2) {
+        setUsdExchangeRate(`${parts[0]}.${parts[1].slice(0, 2)}`);
+        return;
       }
     }
     setUsdExchangeRate(val);
-  };
+  }, []);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -55,13 +54,17 @@ export default function CurrencySettingsModal({ isOpen, onClose }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currencyName, currencySymbol, usdExchangeRate, updateCurrencySettings, onClose]);
 
-  const sampleUSD = 1000;
-  const convertedSample = (sampleUSD * (Number(usdExchangeRate) || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const convertedSample = useMemo(() => {
+    const rate = Number(usdExchangeRate) || 1;
+    return (1000 * rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }, [usdExchangeRate]);
+
+  if (!isOpen || !nation) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 transform-gpu animate-fadeIn">
       <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-dark-900 shadow-2xl">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
@@ -74,7 +77,7 @@ export default function CurrencySettingsModal({ isOpen, onClose }) {
                 <p className="text-xs text-slate-400">Configure currency name and USD exchange rate</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-dark-800 cursor-pointer">
+            <button onClick={onClose} type="button" className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-dark-800 cursor-pointer">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -157,4 +160,4 @@ export default function CurrencySettingsModal({ isOpen, onClose }) {
       </div>
     </div>
   );
-}
+});

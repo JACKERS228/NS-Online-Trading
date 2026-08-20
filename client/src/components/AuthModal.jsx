@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, useTransition } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ShieldAlert, Globe, Coins, ArrowRight, Sparkles, X } from 'lucide-react';
 
-export default function AuthModal({ isOpen, onClose }) {
+export default React.memo(function AuthModal({ isOpen, onClose }) {
   const { registerOrLogin } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
   const [nationName, setNationName] = useState('');
@@ -12,22 +12,42 @@ export default function AuthModal({ isOpen, onClose }) {
   const [usdExchangeRate, setUsdExchangeRate] = useState('2.50');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [, startTransition] = useTransition();
 
-  if (!isOpen) return null;
-
-  const handleRateChange = (e) => {
-    let val = e.target.value;
-    // Restrict to 2 decimal places
+  // Instant fast keystroke handler
+  const handleRateChange = useCallback((e) => {
+    const val = e.target.value;
     if (val.includes('.')) {
-      const [whole, decimals] = val.split('.');
-      if (decimals.length > 2) {
-        val = `${whole}.${decimals.slice(0, 2)}`;
+      const parts = val.split('.');
+      if (parts[1] && parts[1].length > 2) {
+        setUsdExchangeRate(`${parts[0]}.${parts[1].slice(0, 2)}`);
+        return;
       }
     }
     setUsdExchangeRate(val);
-  };
+  }, []);
 
-  const handleSubmit = async (e) => {
+  const handleTabSwitch = useCallback((registerMode) => {
+    startTransition(() => {
+      setIsRegister(registerMode);
+      setError('');
+    });
+  }, []);
+
+  const handleDemoFill = useCallback(() => {
+    const demoNum = Math.floor(Math.random() * 900 + 100);
+    startTransition(() => {
+      setNationName(`Republic of Valoria ${demoNum}`);
+      setPin('1234');
+      setCurrencyName('Valorian Dinar');
+      setCurrencySymbol('VD');
+      setUsdExchangeRate('3.20');
+      setIsRegister(true);
+      setError('');
+    });
+  }, []);
+
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -36,7 +56,7 @@ export default function AuthModal({ isOpen, onClose }) {
 
     try {
       await registerOrLogin({
-        nationName,
+        nationName: nationName.trim(),
         pin,
         currencyName: isRegister ? currencyName.trim() : undefined,
         currencySymbol: isRegister ? currencySymbol.trim() : undefined,
@@ -48,22 +68,18 @@ export default function AuthModal({ isOpen, onClose }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [nationName, pin, isRegister, currencyName, currencySymbol, usdExchangeRate, registerOrLogin, onClose]);
 
-  const handleDemoFill = () => {
-    const demoNum = Math.floor(Math.random() * 900 + 100);
-    setNationName(`Republic of Valoria ${demoNum}`);
-    setPin('1234');
-    setCurrencyName('Valorian Dinar');
-    setCurrencySymbol('VD');
-    setUsdExchangeRate('3.20');
-    setIsRegister(true);
-  };
+  // Memoized preview calculation
+  const previewCapital = useMemo(() => {
+    const rate = Number(usdExchangeRate) || 1;
+    return (100000 * rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }, [usdExchangeRate]);
 
-  const previewCapital = (100000 * (Number(usdExchangeRate) || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 transform-gpu animate-fadeIn">
       <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-dark-900 shadow-2xl">
         
         {/* Top glow accent */}
@@ -88,6 +104,7 @@ export default function AuthModal({ isOpen, onClose }) {
             </div>
             <button 
               onClick={onClose}
+              type="button"
               className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-dark-800 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
@@ -112,7 +129,7 @@ export default function AuthModal({ isOpen, onClose }) {
           <div className="flex rounded-xl bg-dark-850 p-1 mb-5 border border-white/5">
             <button
               type="button"
-              onClick={() => setIsRegister(false)}
+              onClick={() => handleTabSwitch(false)}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition cursor-pointer ${
                 !isRegister 
                   ? 'bg-dark-750 text-white shadow-sm border border-white/10' 
@@ -123,7 +140,7 @@ export default function AuthModal({ isOpen, onClose }) {
             </button>
             <button
               type="button"
-              onClick={() => setIsRegister(true)}
+              onClick={() => handleTabSwitch(true)}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition cursor-pointer ${
                 isRegister 
                   ? 'bg-dark-750 text-white shadow-sm border border-white/10' 
@@ -166,7 +183,7 @@ export default function AuthModal({ isOpen, onClose }) {
 
             {/* Registration Custom Currency Inputs */}
             {isRegister && (
-              <div className="p-4 rounded-xl bg-dark-850/60 border border-white/5 space-y-3 animate-fadeIn">
+              <div className="p-4 rounded-xl bg-dark-850/60 border border-white/5 space-y-3">
                 <div className="flex items-center gap-2 text-xs font-semibold text-brand-cyan mb-1">
                   <Coins className="w-4 h-4" /> National Currency Settings
                 </div>
@@ -238,4 +255,4 @@ export default function AuthModal({ isOpen, onClose }) {
       </div>
     </div>
   );
-}
+});
