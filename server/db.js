@@ -7,11 +7,13 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 // Determine database target: Cloud (Turso / LibSQL) or Local File
-const isCloudDb = Boolean(process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL);
-const dbUrl = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || `file:${path.join(__dirname, 'trading_simulation.db').replace(/\\/g, '/')}`;
-const authToken = process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN || undefined;
+const forceLocal = process.env.USE_LOCAL_DB === 'true' || process.env.DB_MODE === 'local';
+const isCloudDb = !forceLocal && Boolean(process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL);
+const localDbPath = `file:${path.join(__dirname, 'trading_simulation.db').replace(/\\/g, '/')}`;
+const dbUrl = isCloudDb ? (process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL) : localDbPath;
+const authToken = isCloudDb ? (process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN) : undefined;
 
-console.log(`[Database] Initializing ${isCloudDb ? 'Encrypted Cloud Database (Turso/LibSQL)' : 'Local File SQLite Database'}`);
+console.log(`[Database] Mode: ${isCloudDb ? 'Encrypted Cloud Database (Turso)' : 'Local File Database (trading_simulation.db)'}`);
 
 const client = createClient({
   url: dbUrl,
