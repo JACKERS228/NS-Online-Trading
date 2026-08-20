@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { Coins, X, Check, RefreshCw } from 'lucide-react';
 
@@ -48,7 +49,7 @@ export default React.memo(function CurrencySettingsModal({ isOpen, onClose }) {
       setTimeout(() => {
         setSaved(false);
         onClose();
-      }, 1000);
+      }, 800);
     } catch (err) {
       setError(err.message || 'Failed to update currency settings');
     } finally {
@@ -63,8 +64,8 @@ export default React.memo(function CurrencySettingsModal({ isOpen, onClose }) {
 
   if (!isOpen || !nation) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 transform-gpu animate-fadeIn">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 transform-gpu animate-fadeIn">
       <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-dark-900 shadow-2xl">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
@@ -160,4 +161,6 @@ export default React.memo(function CurrencySettingsModal({ isOpen, onClose }) {
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 });

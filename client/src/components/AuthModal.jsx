@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShieldAlert, Globe, Coins, ArrowRight, Sparkles, X } from 'lucide-react';
 
@@ -14,7 +15,6 @@ export default React.memo(function AuthModal({ isOpen, onClose }) {
   const [error, setError] = useState('');
   const [, startTransition] = useTransition();
 
-  // Instant fast keystroke handler
   const handleRateChange = useCallback((e) => {
     const val = e.target.value;
     if (val.includes('.')) {
@@ -70,7 +70,6 @@ export default React.memo(function AuthModal({ isOpen, onClose }) {
     }
   }, [nationName, pin, isRegister, currencyName, currencySymbol, usdExchangeRate, registerOrLogin, onClose]);
 
-  // Memoized preview calculation
   const previewCapital = useMemo(() => {
     const rate = Number(usdExchangeRate) || 1;
     return (100000 * rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -78,8 +77,8 @@ export default React.memo(function AuthModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 transform-gpu animate-fadeIn">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 transform-gpu animate-fadeIn">
       <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-dark-900 shadow-2xl">
         
         {/* Top glow accent */}
@@ -255,4 +254,6 @@ export default React.memo(function AuthModal({ isOpen, onClose }) {
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 });

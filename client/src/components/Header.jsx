@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMarket } from '../context/MarketContext';
 import { 
@@ -263,8 +264,8 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
       />
 
       {/* Confirm Sandbox Reset Modal */}
-      {confirmResetOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      {confirmResetOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 transform-gpu animate-fadeIn">
           <div className="max-w-sm w-full p-6 rounded-2xl bg-dark-900 border border-amber-500/30 text-center space-y-4 shadow-2xl">
             <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto">
               <RotateCcw className="w-6 h-6" />
@@ -276,19 +277,22 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setConfirmResetOpen(false)}
+                type="button"
                 className="flex-1 py-2 rounded-xl bg-dark-800 text-slate-300 text-xs font-semibold hover:bg-dark-750 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleReset}
+                type="button"
                 className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-dark-950 text-xs font-bold cursor-pointer"
               >
                 Reset
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </header>
   );
