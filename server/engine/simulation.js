@@ -4,25 +4,27 @@ const { v4: uuidv4 } = require('uuid');
 class MarketSimulationEngine {
   constructor() {
     this.intervalId = null;
-    this.tickRateMs = 5000; // Tick every 5 seconds
+    this.tickRateMs = 5000;
     this.subscribers = new Set();
     this.recentTrades = [];
     this.latestNews = [];
+    this.isProcessingTick = false;
   }
 
-  // Subscribe client SSE response stream
-  subscribe(res) {
+  async subscribe(res) {
     this.subscribers.add(res);
     res.on('close', () => {
       this.subscribers.delete(res);
     });
 
-    // Send initial snapshot
+    const assets = await this.getAllAssets();
+    const news = await this.getLatestNews(10);
+
     const initialData = {
       type: 'SNAPSHOT',
-      assets: this.getAllAssets(),
+      assets: assets,
       recentTrades: this.recentTrades.slice(0, 15),
-      latestNews: this.getLatestNews(10),
+      latestNews: news,
       timestamp: Date.now()
     };
     res.write(`data: ${JSON.stringify(initialData)}\n\n`);
@@ -39,31 +41,38 @@ class MarketSimulationEngine {
     }
   }
 
-  getAllAssets() {
-    return db.prepare(`
+  async getAllAssets() {
+    return await db.all(`
       SELECT * FROM assets WHERE is_delisted = 0 ORDER BY type ASC, market_cap_usd DESC, current_price_usd DESC
-    `).all();
+    `);
   }
 
-  getLatestNews(limit = 15) {
-    return db.prepare(`
+  async getLatestNews(limit = 15) {
+    return await db.all(`
       SELECT n.*, a.ticker, a.name as asset_name 
       FROM news_events n
       LEFT JOIN assets a ON n.asset_id = a.id
       ORDER BY n.timestamp DESC
       LIMIT ?
-    `).all(limit);
+    `, [limit]);
   }
 
-  start() {
+  async start() {
     if (this.intervalId) return;
     console.log(`[Market Engine] Starting real-time simulation engine (Tick: ${this.tickRateMs}ms)...`);
     
-    // Load initial trades and news
-    this.latestNews = this.getLatestNews(20);
+    this.latestNews = await this.getLatestNews(20);
 
-    this.intervalId = setInterval(() => {
-      this.tick();
+    this.intervalId = setInterval(async () => {
+      if (this.isProcessingTick) return;
+      this.isProcessingTick = true;
+      try {
+        await this.tick();
+      } catch (err) {
+        console.error('[Market Engine] Tick error:', err);
+      } finally {
+        this.isProcessingTick = false;
+      }
     }, this.tickRateMs);
   }
 
@@ -75,154 +84,89 @@ class MarketSimulationEngine {
     }
   }
 
-  tick() {
+  async tick() {
     const now = Date.now();
-    const assets = this.getAllAssets();
+    const assets = await this.getAllAssets();
     if (!assets || assets.length === 0) return;
 
-    // Randomly roll for a dynamic corporate/macro news event (~8% chance per tick)
     let triggeredEvent = null;
     if (Math.random() < 0.08) {
-      triggeredEvent = this.generateRandomMarketEvent(assets, now);
+      triggeredEvent = await this.generateRandomMarketEvent(assets, now);
     }
 
     const updatedAssets = [];
     const newTrades = [];
+    const batchStatements = [];
 
-    const updateAssetStmt = db.prepare(`
-      UPDATE assets SET
-        current_price_usd = @current_price_usd,
-        high_24h_usd = @high_24h_usd,
-        low_24h_usd = @low_24h_usd,
-        volume_24h = @volume_24h,
-        market_cap_usd = @market_cap_usd
-      WHERE id = @id
-    `);
-
-    const insertCandleStmt = db.prepare(`
-      INSERT INTO price_candles (asset_id, timeframe, timestamp, open, high, low, close, volume)
-      VALUES (@asset_id, '1m', @timestamp, @open, @high, @low, @close, @volume)
-    `);
-
-    const updateCandleStmt = db.prepare(`
-      UPDATE price_candles SET
-        high = MAX(high, @high),
-        low = MIN(low, @low),
-        close = @close,
-        volume = volume + @volume
-      WHERE id = @id
-    `);
-
-    const getRecentCandleStmt = db.prepare(`
-      SELECT id, open, high, low, close, volume, timestamp 
-      FROM price_candles 
-      WHERE asset_id = ? AND timeframe = '1m' 
-      ORDER BY timestamp DESC LIMIT 1
-    `);
-
-    const tx = db.transaction(() => {
-      for (const asset of assets) {
-        // Base drift based on health score (50 is neutral, >50 bullish drift, <50 bearish drift)
-        const healthDrift = (asset.health_score - 50) * 0.0001;
-        
-        // Random standard deviation scaled by volatility
-        const randComponent = (Math.random() - 0.495) * asset.volatility * 0.15;
-        
-        // Event shock if this asset was targeted
-        let shock = 0;
-        if (triggeredEvent && triggeredEvent.asset_id === asset.id) {
-          shock = triggeredEvent.impact_factor;
-        }
-
-        let changePercent = healthDrift + randComponent + shock;
-        
-        // Clamp maximum move per single tick to prevent breaking bounds
-        changePercent = Math.max(-0.25, Math.min(0.35, changePercent));
-
-        const oldPrice = asset.current_price_usd;
-        let newPrice = +(oldPrice * (1 + changePercent)).toFixed(2);
-        if (newPrice < 0.01) newPrice = 0.01;
-
-        // Calculate tick volume
-        const tickVolume = Math.floor(Math.random() * (asset.current_price_usd > 100 ? 500 : 5000) + 10);
-        const newVolume24h = asset.volume_24h + tickVolume;
-        const newHigh = Math.max(asset.high_24h_usd, newPrice);
-        const newLow = Math.min(asset.low_24h_usd, newPrice);
-        const newMarketCap = asset.shares_outstanding > 0 ? +(newPrice * asset.shares_outstanding).toFixed(2) : 0;
-
-        updateAssetStmt.run({
-          id: asset.id,
-          current_price_usd: newPrice,
-          high_24h_usd: newHigh,
-          low_24h_usd: newLow,
-          volume_24h: newVolume24h,
-          market_cap_usd: newMarketCap
-        });
-
-        // 1m Candle Management
-        const latestCandle = getRecentCandleStmt.get(asset.id);
-        const oneMinuteMs = 60 * 1000;
-
-        if (!latestCandle || (now - latestCandle.timestamp) >= oneMinuteMs) {
-          // Start new 1-minute candle
-          insertCandleStmt.run({
-            asset_id: asset.id,
-            timestamp: Math.floor(now / 60000) * 60000,
-            open: oldPrice,
-            high: Math.max(oldPrice, newPrice),
-            low: Math.min(oldPrice, newPrice),
-            close: newPrice,
-            volume: tickVolume
-          });
-        } else {
-          // Update existing 1-minute candle
-          updateCandleStmt.run({
-            id: latestCandle.id,
-            high: newPrice,
-            low: newPrice,
-            close: newPrice,
-            volume: tickVolume
-          });
-        }
-
-        // Generate simulated NPC trade for the live stream
-        const tradeSide = newPrice >= oldPrice ? 'BUY' : 'SELL';
-        const tradeQty = Math.floor(Math.random() * 200 + 5);
-        const trade = {
-          id: uuidv4().substring(0, 8),
-          ticker: asset.ticker,
-          name: asset.name,
-          side: tradeSide,
-          price_usd: newPrice,
-          quantity: tradeQty,
-          total_usd: +(newPrice * tradeQty).toFixed(2),
-          timestamp: now,
-          trader: this.getRandomTraderName(asset.nation_name)
-        };
-        newTrades.push(trade);
-
-        updatedAssets.push({
-          id: asset.id,
-          ticker: asset.ticker,
-          name: asset.name,
-          type: asset.type,
-          current_price_usd: newPrice,
-          prev_price_usd: oldPrice,
-          change_24h: +(((newPrice - asset.open_price_24h_usd) / asset.open_price_24h_usd) * 100).toFixed(2),
-          high_24h_usd: newHigh,
-          low_24h_usd: newLow,
-          volume_24h: newVolume24h,
-          market_cap_usd: newMarketCap
-        });
+    for (const asset of assets) {
+      const healthDrift = (Number(asset.health_score) - 50) * 0.0001;
+      const randComponent = (Math.random() - 0.495) * Number(asset.volatility) * 0.15;
+      
+      let shock = 0;
+      if (triggeredEvent && triggeredEvent.asset_id === asset.id) {
+        shock = Number(triggeredEvent.impact_factor);
       }
-    });
 
-    tx();
+      let changePercent = healthDrift + randComponent + shock;
+      changePercent = Math.max(-0.25, Math.min(0.35, changePercent));
 
-    // Keep recent trades buffer
+      const oldPrice = Number(asset.current_price_usd);
+      let newPrice = +(oldPrice * (1 + changePercent)).toFixed(2);
+      if (newPrice < 0.01) newPrice = 0.01;
+
+      const tickVolume = Math.floor(Math.random() * (oldPrice > 100 ? 500 : 5000) + 10);
+      const newVolume24h = Number(asset.volume_24h) + tickVolume;
+      const newHigh = Math.max(Number(asset.high_24h_usd), newPrice);
+      const newLow = Math.min(Number(asset.low_24h_usd), newPrice);
+      const newMarketCap = Number(asset.shares_outstanding) > 0 ? +(newPrice * Number(asset.shares_outstanding)).toFixed(2) : 0;
+
+      batchStatements.push({
+        sql: `UPDATE assets SET
+          current_price_usd = ?,
+          high_24h_usd = ?,
+          low_24h_usd = ?,
+          volume_24h = ?,
+          market_cap_usd = ?
+        WHERE id = ?`,
+        args: [newPrice, newHigh, newLow, newVolume24h, newMarketCap, asset.id]
+      });
+
+      const tradeSide = newPrice >= oldPrice ? 'BUY' : 'SELL';
+      const tradeQty = Math.floor(Math.random() * 200 + 5);
+      const trade = {
+        id: uuidv4().substring(0, 8),
+        ticker: asset.ticker,
+        name: asset.name,
+        side: tradeSide,
+        price_usd: newPrice,
+        quantity: tradeQty,
+        total_usd: +(newPrice * tradeQty).toFixed(2),
+        timestamp: now,
+        trader: this.getRandomTraderName(asset.nation_name)
+      };
+      newTrades.push(trade);
+
+      updatedAssets.push({
+        id: asset.id,
+        ticker: asset.ticker,
+        name: asset.name,
+        type: asset.type,
+        current_price_usd: newPrice,
+        prev_price_usd: oldPrice,
+        change_24h: +(((newPrice - Number(asset.open_price_24h_usd)) / Number(asset.open_price_24h_usd)) * 100).toFixed(2),
+        high_24h_usd: newHigh,
+        low_24h_usd: newLow,
+        volume_24h: newVolume24h,
+        market_cap_usd: newMarketCap
+      });
+    }
+
+    if (batchStatements.length > 0) {
+      await db.batch(batchStatements);
+    }
+
     this.recentTrades = [...newTrades.slice(0, 5), ...this.recentTrades].slice(0, 30);
 
-    // Broadcast tick update to all connected clients
     this.broadcast({
       type: 'TICK',
       timestamp: now,
@@ -237,7 +181,7 @@ class MarketSimulationEngine {
     });
   }
 
-  generateRandomMarketEvent(assets, timestamp) {
+  async generateRandomMarketEvent(assets, timestamp) {
     const targetAsset = assets[Math.floor(Math.random() * assets.length)];
     if (!targetAsset) return null;
 
@@ -258,22 +202,22 @@ class MarketSimulationEngine {
         },
         {
           category: 'POLICY',
-          headline: `Government Awards Strategic Infrastructure Contract to ${targetAsset.name}`,
-          detail: `Multi-year sovereign modernization procurement agreement boosts forward enterprise valuation.`,
+          headline: `Government Awards Strategic Contract to ${targetAsset.name}`,
+          detail: `Multi-year sovereign procurement agreement boosts forward enterprise valuation.`,
           impact: 0.05 + Math.random() * 0.07
         },
         {
           category: 'SCANDAL',
           headline: `Internal Supply Audit Triggers Investigation at ${targetAsset.name}`,
-          detail: `Regulatory scrutiny over component certifications leads to short-term production delays.`,
+          detail: `Regulatory scrutiny over component certifications leads to short-term delays.`,
           impact: -(0.06 + Math.random() * 0.08)
         }
       ],
       commodity: [
         {
           category: 'COMMODITY',
-          headline: `Global Trade Bottlenecks Tighten ${targetAsset.name} Reserves`,
-          detail: `Export terminal maintenance and sovereign stockpiling create sudden spot-market inventory crunches.`,
+          headline: `Global Logistics Bottlenecks Tighten ${targetAsset.name} Reserves`,
+          detail: `Export terminal maintenance and sovereign stockpiling create sudden spot inventory crunches.`,
           impact: 0.05 + Math.random() * 0.09
         },
         {
@@ -287,7 +231,7 @@ class MarketSimulationEngine {
         {
           category: 'CRYPTO',
           headline: `Institutional Vaults Deploy Liquidity into ${targetAsset.name}`,
-          detail: `Surging decentralized staking participation accelerates network fee burns and token accumulation.`,
+          detail: `Surging decentralized staking participation accelerates network fee burns.`,
           impact: 0.12 + Math.random() * 0.18
         },
         {
@@ -304,15 +248,13 @@ class MarketSimulationEngine {
 
     const eventId = uuidv4();
     
-    // Insert news event into DB
-    db.prepare(`
+    await db.run(`
       INSERT INTO news_events (id, asset_id, headline, detail, category, impact_factor, timestamp)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(eventId, targetAsset.id, template.headline, template.detail, template.category, template.impact, timestamp);
+    `, [eventId, targetAsset.id, template.headline, template.detail, template.category, template.impact, timestamp]);
 
-    // If dividend event, distribute cash to all current holders of this stock
-    if (template.isDividend && targetAsset.dividend_yield > 0) {
-      this.distributeDividends(targetAsset);
+    if (template.isDividend && Number(targetAsset.dividend_yield) > 0) {
+      await this.distributeDividends(targetAsset);
     }
 
     return {
@@ -326,38 +268,38 @@ class MarketSimulationEngine {
     };
   }
 
-  distributeDividends(asset) {
+  async distributeDividends(asset) {
     try {
-      const dividendPerShare = +(asset.current_price_usd * (asset.dividend_yield / 4)).toFixed(4); // Quarterly fraction
+      const dividendPerShare = +(Number(asset.current_price_usd) * (Number(asset.dividend_yield) / 4)).toFixed(4);
       if (dividendPerShare <= 0) return;
 
-      const holdings = db.prepare(`
+      const holdings = await db.all(`
         SELECT p.nation_id, p.quantity, n.name as nation_name 
         FROM portfolios p
         JOIN nations n ON p.nation_id = n.id
         WHERE p.asset_id = ? AND p.quantity > 0
-      `).all(asset.id);
+      `, [asset.id]);
 
-      const updateNationBalance = db.prepare(`
-        UPDATE nations SET cash_balance_usd = cash_balance_usd + ? WHERE id = ?
-      `);
+      const statements = [];
 
-      const updatePortfolioDividends = db.prepare(`
-        UPDATE portfolios SET total_dividends_earned_usd = total_dividends_earned_usd + ? WHERE nation_id = ? AND asset_id = ?
-      `);
-
-      const divTx = db.transaction(() => {
-        for (const h of holdings) {
-          const totalPayout = +(h.quantity * dividendPerShare).toFixed(2);
-          if (totalPayout > 0) {
-            updateNationBalance.run(totalPayout, h.nation_id);
-            updatePortfolioDividends.run(totalPayout, h.nation_id, asset.id);
-          }
+      for (const h of holdings) {
+        const totalPayout = +(Number(h.quantity) * dividendPerShare).toFixed(2);
+        if (totalPayout > 0) {
+          statements.push({
+            sql: 'UPDATE nations SET cash_balance_usd = cash_balance_usd + ? WHERE id = ?',
+            args: [totalPayout, h.nation_id]
+          });
+          statements.push({
+            sql: 'UPDATE portfolios SET total_dividends_earned_usd = total_dividends_earned_usd + ? WHERE nation_id = ? AND asset_id = ?',
+            args: [totalPayout, h.nation_id, asset.id]
+          });
         }
-      });
+      }
 
-      divTx();
-      console.log(`[Market Engine] Distributed $${dividendPerShare}/sh dividend for ${asset.ticker} to ${holdings.length} shareholder(s).`);
+      if (statements.length > 0) {
+        await db.batch(statements);
+        console.log(`[Market Engine] Distributed $${dividendPerShare}/sh dividend for ${asset.ticker} to ${holdings.length} shareholder(s).`);
+      }
     } catch (err) {
       console.error('[Market Engine] Error distributing dividends:', err);
     }

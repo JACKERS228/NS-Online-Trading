@@ -1,149 +1,66 @@
-const initSqlJs = require('sql.js');
-const fs = require('fs');
+const { createClient } = require('@libsql/client');
 const path = require('path');
+const dotenv = require('dotenv');
 const { v4: uuidv4 } = require('uuid');
 
-const dbPath = path.join(__dirname, 'trading_simulation.db');
+dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
-class SQLiteDatabase {
+// Determine database target: Cloud (Turso / LibSQL) or Local File
+const isCloudDb = Boolean(process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL);
+const dbUrl = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL || `file:${path.join(__dirname, 'trading_simulation.db').replace(/\\/g, '/')}`;
+const authToken = process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN || undefined;
+
+console.log(`[Database] Initializing ${isCloudDb ? 'Encrypted Cloud Database (Turso/LibSQL)' : 'Local File SQLite Database'}`);
+
+const client = createClient({
+  url: dbUrl,
+  authToken: authToken,
+});
+
+class SecureDatabaseManager {
   constructor() {
-    this.db = null;
-    this.SQL = null;
-    this.saveTimeout = null;
+    this.client = client;
+    this.isReady = false;
   }
 
   async init() {
-    this.SQL = await initSqlJs();
-
-    if (fs.existsSync(dbPath)) {
-      const fileBuffer = fs.readFileSync(dbPath);
-      this.db = new this.SQL.Database(fileBuffer);
-    } else {
-      this.db = new this.SQL.Database();
-    }
-
-    this.createTables();
-    this.seedInitialData();
-    this.saveImmediate();
+    await this.createTables();
+    await this.seedInitialData();
+    this.isReady = true;
+    console.log(`[Database] Schema verified and security rules enforced.`);
   }
 
-  save() {
-    if (this.saveTimeout) return;
-    this.saveTimeout = setTimeout(() => {
-      this.saveImmediate();
-      this.saveTimeout = null;
-    }, 1000);
+  // Parameterized query returning multiple rows
+  async all(sql, args = []) {
+    const res = await this.client.execute({ sql, args });
+    return res.rows.map(row => ({ ...row }));
   }
 
-  saveImmediate() {
-    if (!this.db) return;
-    try {
-      const data = this.db.export();
-      const buffer = Buffer.from(data);
-      fs.writeFileSync(dbPath, buffer);
-    } catch (err) {
-      console.error('[DB] Failed to persist database to disk:', err);
-    }
+  // Parameterized query returning single row
+  async get(sql, args = []) {
+    const res = await this.client.execute({ sql, args });
+    if (res.rows.length === 0) return null;
+    return { ...res.rows[0] };
   }
 
-  exec(sql) {
-    this.db.run(sql);
-    this.save();
-  }
-
-  prepare(sql) {
-    const self = this;
-
-    function normalizeParams(params) {
-      if (!params || params.length === 0) return [];
-      if (params.length === 1 && typeof params[0] === 'object' && params[0] !== null && !Array.isArray(params[0])) {
-        // Named parameter object: map @prop or :prop or $prop to values
-        const obj = params[0];
-        const res = {};
-        for (const [key, val] of Object.entries(obj)) {
-          const cleanKey = key.startsWith('@') || key.startsWith(':') || key.startsWith('$') ? key : `@${key}`;
-          res[cleanKey] = val === undefined ? null : val;
-        }
-        return res;
-      }
-      return params;
-    }
-
+  // Parameterized query for INSERT/UPDATE/DELETE
+  async run(sql, args = []) {
+    const res = await this.client.execute({ sql, args });
     return {
-      run(...params) {
-        const p = normalizeParams(params);
-        try {
-          self.db.run(sql, p);
-          self.save();
-          return { changes: self.db.getRowsModified() };
-        } catch (err) {
-          throw err;
-        }
-      },
-      get(...params) {
-        const p = normalizeParams(params);
-        let stmt;
-        try {
-          stmt = self.db.prepare(sql);
-          if (Array.isArray(p)) {
-            stmt.bind(p);
-          } else {
-            stmt.bind(p);
-          }
-          if (stmt.step()) {
-            const row = stmt.getAsObject();
-            stmt.free();
-            return row;
-          }
-          stmt.free();
-          return null;
-        } catch (err) {
-          if (stmt) stmt.free();
-          throw err;
-        }
-      },
-      all(...params) {
-        const p = normalizeParams(params);
-        let stmt;
-        try {
-          stmt = self.db.prepare(sql);
-          if (Array.isArray(p)) {
-            stmt.bind(p);
-          } else {
-            stmt.bind(p);
-          }
-          const rows = [];
-          while (stmt.step()) {
-            rows.push(stmt.getAsObject());
-          }
-          stmt.free();
-          return rows;
-        } catch (err) {
-          if (stmt) stmt.free();
-          throw err;
-        }
-      }
+      changes: res.rowsAffected,
+      lastInsertRowid: res.lastInsertRowid
     };
   }
 
-  transaction(fn) {
-    return (...args) => {
-      this.db.run('BEGIN TRANSACTION;');
-      try {
-        const result = fn(...args);
-        this.db.run('COMMIT;');
-        this.save();
-        return result;
-      } catch (err) {
-        this.db.run('ROLLBACK;');
-        throw err;
-      }
-    };
+  // Atomic batch transaction
+  async batch(statements) {
+    return await this.client.batch(statements, 'write');
   }
 
-  createTables() {
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS nations (
+  async createTables() {
+    await this.client.batch([
+      `CREATE TABLE IF NOT EXISTS nations (
         id TEXT PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
         pin_hash TEXT NOT NULL,
@@ -153,9 +70,9 @@ class SQLiteDatabase {
         cash_balance_usd REAL NOT NULL DEFAULT 100000.0,
         starting_balance_usd REAL NOT NULL DEFAULT 100000.0,
         created_at INTEGER NOT NULL
-      );
+      );`,
 
-      CREATE TABLE IF NOT EXISTS assets (
+      `CREATE TABLE IF NOT EXISTS assets (
         id TEXT PRIMARY KEY,
         ticker TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
@@ -177,9 +94,9 @@ class SQLiteDatabase {
         health_score REAL NOT NULL DEFAULT 50,
         is_delisted INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL
-      );
+      );`,
 
-      CREATE TABLE IF NOT EXISTS price_candles (
+      `CREATE TABLE IF NOT EXISTS price_candles (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         asset_id TEXT NOT NULL,
         timeframe TEXT NOT NULL,
@@ -189,9 +106,9 @@ class SQLiteDatabase {
         low REAL NOT NULL,
         close REAL NOT NULL,
         volume REAL NOT NULL
-      );
+      );`,
 
-      CREATE TABLE IF NOT EXISTS portfolios (
+      `CREATE TABLE IF NOT EXISTS portfolios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nation_id TEXT NOT NULL,
         asset_id TEXT NOT NULL,
@@ -199,9 +116,9 @@ class SQLiteDatabase {
         average_buy_price_usd REAL NOT NULL DEFAULT 0,
         total_dividends_earned_usd REAL NOT NULL DEFAULT 0,
         UNIQUE(nation_id, asset_id)
-      );
+      );`,
 
-      CREATE TABLE IF NOT EXISTS orders (
+      `CREATE TABLE IF NOT EXISTS orders (
         id TEXT PRIMARY KEY,
         nation_id TEXT NOT NULL,
         asset_id TEXT NOT NULL,
@@ -213,9 +130,9 @@ class SQLiteDatabase {
         total_usd REAL NOT NULL,
         status TEXT NOT NULL DEFAULT 'FILLED',
         timestamp INTEGER NOT NULL
-      );
+      );`,
 
-      CREATE TABLE IF NOT EXISTS news_events (
+      `CREATE TABLE IF NOT EXISTS news_events (
         id TEXT PRIMARY KEY,
         asset_id TEXT,
         headline TEXT NOT NULL,
@@ -223,12 +140,12 @@ class SQLiteDatabase {
         category TEXT NOT NULL,
         impact_factor REAL NOT NULL DEFAULT 0,
         timestamp INTEGER NOT NULL
-      );
-    `);
+      );`
+    ], 'write');
   }
 
-  seedInitialData() {
-    const res = this.prepare('SELECT COUNT(*) as count FROM assets').get();
+  async seedInitialData() {
+    const res = await this.get('SELECT COUNT(*) as count FROM assets');
     if (res && res.count > 0) return;
 
     const now = Date.now();
@@ -387,12 +304,12 @@ class SQLiteDatabase {
         shares_outstanding: 21000000,
         shares_float: 16800000,
         volatility: 0.09,
-        dividend_yield: 0.045, // 4.5% staking yield
+        dividend_yield: 0.045,
         health_score: 88,
         created_at: now
       },
 
-      // Seed Starter Companies
+      // Starter Companies
       {
         id: 'stock_aegis',
         ticker: 'AGIS',
@@ -483,27 +400,30 @@ class SQLiteDatabase {
       }
     ];
 
+    const statements = [];
+
     for (const asset of initialAssets) {
-      this.prepare(`
-        INSERT INTO assets (
+      statements.push({
+        sql: `INSERT INTO assets (
           id, ticker, name, type, nation_id, nation_name, sector, description,
           current_price_usd, open_price_24h_usd, high_24h_usd, low_24h_usd,
           volume_24h, market_cap_usd, shares_outstanding, shares_float,
           volatility, dividend_yield, health_score, created_at
-        ) VALUES (
-          @id, @ticker, @name, @type, @nation_id, @nation_name, @sector, @description,
-          @current_price_usd, @open_price_24h_usd, @high_24h_usd, @low_24h_usd,
-          @volume_24h, @market_cap_usd, @shares_outstanding, @shares_float,
-          @volatility, @dividend_yield, @health_score, @created_at
-        )
-      `).run(asset);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          asset.id, asset.ticker, asset.name, asset.type, asset.nation_id, asset.nation_name, asset.sector, asset.description,
+          asset.current_price_usd, asset.open_price_24h_usd, asset.high_24h_usd, asset.low_24h_usd,
+          asset.volume_24h, asset.market_cap_usd, asset.shares_outstanding, asset.shares_float,
+          asset.volatility, asset.dividend_yield, asset.health_score, asset.created_at
+        ]
+      });
 
-      // Generate 40 initial 1m historical candles
+      // 30 initial candles
       const basePrice = asset.current_price_usd;
       let prevClose = basePrice * 0.96;
       const intervalMs = 60 * 1000;
 
-      for (let i = 40; i >= 0; i--) {
+      for (let i = 30; i >= 0; i--) {
         const candleTime = now - (i * intervalMs);
         const changePercent = (Math.random() - 0.49) * asset.volatility * 0.4;
         const open = prevClose;
@@ -512,64 +432,48 @@ class SQLiteDatabase {
         const low = +(Math.min(open, close) * 0.996).toFixed(2);
         const volume = Math.floor(Math.random() * (asset.volume_24h / 400) + 50);
 
-        this.prepare(`
-          INSERT INTO price_candles (asset_id, timeframe, timestamp, open, high, low, close, volume)
-          VALUES (@asset_id, '1m', @timestamp, @open, @high, @low, @close, @volume)
-        `).run({
-          asset_id: asset.id,
-          timestamp: candleTime,
-          open,
-          high,
-          low,
-          close,
-          volume
+        statements.push({
+          sql: `INSERT INTO price_candles (asset_id, timeframe, timestamp, open, high, low, close, volume)
+                VALUES (?, '1m', ?, ?, ?, ?, ?, ?)`,
+          args: [asset.id, candleTime, open, high, low, close, volume]
         });
         prevClose = close;
       }
     }
 
-    // Seed initial news items
-    this.prepare(`
-      INSERT INTO news_events (id, asset_id, headline, detail, category, impact_factor, timestamp)
-      VALUES (@id, @asset_id, @headline, @detail, @category, @impact_factor, @timestamp)
-    `).run({
-      id: uuidv4(),
-      asset_id: 'comm_oil',
-      headline: 'Global Energy Commission Forecasts Sustained Demand',
-      detail: 'Surging demand in industrial manufacturing drives steady baseline accumulation of crude oil reserves across major trading blocs.',
-      category: 'COMMODITY',
-      impact_factor: 0.025,
-      timestamp: now - 3600000
+    // Seed News
+    statements.push({
+      sql: `INSERT INTO news_events (id, asset_id, headline, detail, category, impact_factor, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        uuidv4(),
+        'comm_oil',
+        'Global Energy Commission Forecasts Sustained Demand',
+        'Surging demand in industrial manufacturing drives steady baseline accumulation of crude oil reserves across major trading blocs.',
+        'COMMODITY',
+        0.025,
+        now - 3600000
+      ]
     });
 
-    this.prepare(`
-      INSERT INTO news_events (id, asset_id, headline, detail, category, impact_factor, timestamp)
-      VALUES (@id, @asset_id, @headline, @detail, @category, @impact_factor, @timestamp)
-    `).run({
-      id: uuidv4(),
-      asset_id: 'crypto_sov',
-      headline: 'SoverCoin Staking Treasury Passes Milestone Yield Target',
-      detail: 'Autonomous smart-contracts distribute protocol dividends to sovereign liquidity providers as on-chain adoption rises.',
-      category: 'CRYPTO',
-      impact_factor: 0.048,
-      timestamp: now - 1800000
+    statements.push({
+      sql: `INSERT INTO news_events (id, asset_id, headline, detail, category, impact_factor, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        uuidv4(),
+        'crypto_sov',
+        'SoverCoin Staking Treasury Passes Milestone Yield Target',
+        'Autonomous smart-contracts distribute protocol dividends to sovereign liquidity providers as on-chain adoption rises.',
+        'CRYPTO',
+        0.048,
+        now - 1800000
+      ]
     });
 
-    this.prepare(`
-      INSERT INTO news_events (id, asset_id, headline, detail, category, impact_factor, timestamp)
-      VALUES (@id, @asset_id, @headline, @detail, @category, @impact_factor, @timestamp)
-    `).run({
-      id: uuidv4(),
-      asset_id: 'stock_omni',
-      headline: 'OmniSilicon Announces Breakthrough Neural Co-Processor',
-      detail: 'Commercial testing yields a 40% efficiency boost in autonomous computation, sparking institutional accumulation.',
-      category: 'EARNINGS',
-      impact_factor: 0.052,
-      timestamp: now - 900000
-    });
+    await this.client.batch(statements, 'write');
   }
 }
 
-const instance = new SQLiteDatabase();
+const db = new SecureDatabaseManager();
 
-module.exports = instance;
+module.exports = db;

@@ -7,9 +7,19 @@ server/node_modules/
 client/dist/
 dist/
 
-# Environment files
+# Environment and Secret files
 .env
-.env.local
+.env.*
+*.env
+token*.txt
+*.pem
+*.key
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+server/*.db
 
 # Logs & temp
 npm-debug.log*

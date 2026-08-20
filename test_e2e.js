@@ -3,6 +3,8 @@ async function runTests() {
   const BASE_URL = 'http://localhost:3001';
   console.log('=== STARTING FULL SUITE VERIFICATION ===\n');
 
+  const randId = Math.floor(Math.random() * 900 + 100);
+
   try {
     // 1. Health check
     console.log('1. Testing /api/health...');
@@ -23,11 +25,12 @@ async function runTests() {
 
     // 3. Register Nation with PIN & Custom Currency
     console.log('\n3. Testing Nation Registration & PIN Auth...');
+    const nationName = `Grand Republic of Testland ${randId}`;
     const authRes = await fetch(`${BASE_URL}/api/auth/register-or-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nationName: 'Grand Republic of Testland',
+        nationName: nationName,
         pin: '9876',
         currencyName: 'Imperial Dinar',
         currencySymbol: 'ID',
@@ -41,6 +44,7 @@ async function runTests() {
 
     // 4. Test Company Creation Wizard (IPO)
     console.log('\n4. Testing Company Creation Wizard & IPO Launch...');
+    const companyTicker = `T${randId}`;
     const companyRes = await fetch(`${BASE_URL}/api/wizard/company/create`, {
       method: 'POST',
       headers: {
@@ -48,22 +52,24 @@ async function runTests() {
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
-        name: 'Testland Heavy Industrial Dynamics',
-        ticker: 'THID',
+        name: `Testland Heavy Dynamics ${randId}`,
+        ticker: companyTicker,
         sector: 'Heavy Manufacturing',
         description: 'Manufacturer of sovereign maglev transit and titanium hulls.',
-        scaleTier: 4, // Large-Cap
+        scaleTier: 4,
         profitabilityTier: 4,
         volatilityTier: 2,
         publicFloatPercent: 50
       })
     });
     const companyData = await companyRes.json();
+    if (!companyRes.ok) throw new Error(companyData.error);
     console.log('   ✓ IPO Result:', companyData.message);
     console.log(`   ✓ Share Price: $${companyData.asset.current_price_usd} USD, Founder Shares: ${companyData.founderShares}`);
 
     // 5. Test Crypto Launchpad Token Minting
     console.log('\n5. Testing Fictional Crypto Launchpad...');
+    const cryptoTicker = `C${randId}`;
     const cryptoRes = await fetch(`${BASE_URL}/api/wizard/crypto/create`, {
       method: 'POST',
       headers: {
@@ -71,16 +77,17 @@ async function runTests() {
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
-        tokenName: 'Testland Quantum Credit',
-        ticker: 'TQC',
+        tokenName: `Testland Quantum Credit ${randId}`,
+        ticker: cryptoTicker,
         category: 'Sovereign National Reserve',
         description: 'Algorithmic sovereign token reserve.',
-        supplyTier: 2, // 21 Million
+        supplyTier: 2,
         hypeLevel: 4,
         stakingYield: 8
       })
     });
     const cryptoData = await cryptoRes.json();
+    if (!cryptoRes.ok) throw new Error(cryptoData.error);
     console.log('   ✓ Crypto Mint Result:', cryptoData.message);
     console.log(`   ✓ Genesis Token Price: $${cryptoData.asset.current_price_usd} USD`);
 
@@ -99,6 +106,7 @@ async function runTests() {
       })
     });
     const buyData = await buyRes.json();
+    if (!buyRes.ok) throw new Error(buyData.error);
     console.log('   ✓ Buy Order:', buyData.message);
     console.log(`   ✓ Remaining Cash Balance: $${buyData.cash_balance_usd} USD`);
 
@@ -129,6 +137,7 @@ async function runTests() {
       })
     });
     const sellData = await sellRes.json();
+    if (!sellRes.ok) throw new Error(sellData.error);
     console.log('   ✓ Sell Order:', sellData.message);
     console.log(`   ✓ Updated Cash Balance: $${sellData.cash_balance_usd} USD`);
 
@@ -137,9 +146,6 @@ async function runTests() {
     const nationsRes = await fetch(`${BASE_URL}/api/auth/nations`);
     const nationsData = await nationsRes.json();
     console.log(`   ✓ Registered Nations in Leaderboard: ${nationsData.nations.length}`);
-    nationsData.nations.forEach((n, idx) => {
-      console.log(`     #${idx + 1} ${n.name} | Peg: 1 USD = ${n.usd_exchange_rate} ${n.currency_symbol} ${n.currency_name} | Net Worth: $${n.net_worth_usd} USD`);
-    });
 
     console.log('\n=== ALL END-TO-END VERIFICATION TESTS PASSED SUCCESSFULLY! ===');
   } catch (err) {

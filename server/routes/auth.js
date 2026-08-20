@@ -8,7 +8,7 @@ const db = require('../db');
 const JWT_SECRET = process.env.JWT_SECRET || 'ns-market-super-secret-key-2026';
 
 // Middleware to authenticate JWT
-function authenticateNation(req, res, next) {
+async function authenticateNation(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized: Session missing or invalid' });
@@ -17,7 +17,7 @@ function authenticateNation(req, res, next) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const nation = db.prepare('SELECT * FROM nations WHERE id = ?').get(decoded.nationId);
+    const nation = await db.get('SELECT * FROM nations WHERE id = ?', [decoded.nationId]);
     if (!nation) {
       return res.status(401).json({ error: 'Nation not found' });
     }
@@ -29,7 +29,7 @@ function authenticateNation(req, res, next) {
 }
 
 // Sign In or Register Nation with PIN
-router.post('/register-or-login', (req, res) => {
+router.post('/register-or-login', async (req, res) => {
   try {
     const { nationName, pin, currencyName, currencySymbol, usdExchangeRate } = req.body;
 
@@ -42,11 +42,11 @@ router.post('/register-or-login', (req, res) => {
     }
 
     const trimmedName = nationName.trim();
-    const existing = db.prepare('SELECT * FROM nations WHERE LOWER(name) = LOWER(?)').get(trimmedName);
+    const existing = await db.get('SELECT * FROM nations WHERE LOWER(name) = LOWER(?)', [trimmedName]);
 
     if (existing) {
-      // Authenticate with PIN
-      const isMatch = bcrypt.compareSync(pin, existing.pin_hash);
+      // Authenticate with PIN using bcrypt timing-safe comparison
+      const isMatch = await bcrypt.compare(pin, existing.pin_hash);
       if (!isMatch) {
         return res.status(401).json({
           error: 'Incorrect PIN for this Nation. If you registered previously, enter your correct PIN.'
@@ -71,7 +71,7 @@ router.post('/register-or-login', (req, res) => {
       });
     } else {
       // Register new nation
-      const pinHash = bcrypt.hashSync(pin, 10);
+      const pinHash = await bcrypt.hash(pin, 10);
       const newNationId = uuidv4();
       const currName = (currencyName && currencyName.trim()) ? currencyName.trim() : 'Credits';
       const currSymbol = (currencySymbol && currencySymbol.trim()) ? currencySymbol.trim() : '¤';
@@ -79,14 +79,14 @@ router.post('/register-or-login', (req, res) => {
       const initialCapital = 100000.0;
       const now = Date.now();
 
-      db.prepare(`
+      await db.run(`
         INSERT INTO nations (
           id, name, pin_hash, currency_name, currency_symbol, usd_exchange_rate,
           cash_balance_usd, starting_balance_usd, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(newNationId, trimmedName, pinHash, currName, currSymbol, exchangeRate, initialCapital, initialCapital, now);
+      `, [newNationId, trimmedName, pinHash, currName, currSymbol, exchangeRate, initialCapital, initialCapital, now]);
 
-      const createdNation = db.prepare('SELECT * FROM nations WHERE id = ?').get(newNationId);
+      const createdNation = await db.get('SELECT * FROM nations WHERE id = ?', [newNationId]);
       const token = jwt.sign({ nationId: createdNation.id, nationName: createdNation.name }, JWT_SECRET, { expiresIn: '30d' });
 
       return res.json({
@@ -112,38 +112,43 @@ router.post('/register-or-login', (req, res) => {
 });
 
 // Get current nation profile and fresh balance
-router.get('/me', authenticateNation, (req, res) => {
-  const nation = req.nation;
+router.get('/me', authenticateNation, async (req, res) => {
+  try {
+    const nation = req.nation;
 
-  // Calculate total portfolio asset value in USD
-  const holdings = db.prepare(`
-    SELECT p.quantity, a.current_price_usd 
-    FROM portfolios p
-    JOIN assets a ON p.asset_id = a.id
-    WHERE p.nation_id = ? AND p.quantity > 0
-  `).all(nation.id);
+    // Calculate total portfolio asset value in USD
+    const holdings = await db.all(`
+      SELECT p.quantity, a.current_price_usd 
+      FROM portfolios p
+      JOIN assets a ON p.asset_id = a.id
+      WHERE p.nation_id = ? AND p.quantity > 0
+    `, [nation.id]);
 
-  const portfolioValueUsd = holdings.reduce((sum, h) => sum + (h.quantity * h.current_price_usd), 0);
-  const netWorthUsd = +(nation.cash_balance_usd + portfolioValueUsd).toFixed(2);
+    const portfolioValueUsd = holdings.reduce((sum, h) => sum + (h.quantity * h.current_price_usd), 0);
+    const netWorthUsd = +(nation.cash_balance_usd + portfolioValueUsd).toFixed(2);
 
-  res.json({
-    nation: {
-      id: nation.id,
-      name: nation.name,
-      currency_name: nation.currency_name,
-      currency_symbol: nation.currency_symbol,
-      usd_exchange_rate: nation.usd_exchange_rate,
-      cash_balance_usd: nation.cash_balance_usd,
-      portfolio_value_usd: +portfolioValueUsd.toFixed(2),
-      net_worth_usd: netWorthUsd,
-      starting_balance_usd: nation.starting_balance_usd,
-      created_at: nation.created_at
-    }
-  });
+    res.json({
+      nation: {
+        id: nation.id,
+        name: nation.name,
+        currency_name: nation.currency_name,
+        currency_symbol: nation.currency_symbol,
+        usd_exchange_rate: nation.usd_exchange_rate,
+        cash_balance_usd: nation.cash_balance_usd,
+        portfolio_value_usd: +portfolioValueUsd.toFixed(2),
+        net_worth_usd: netWorthUsd,
+        starting_balance_usd: nation.starting_balance_usd,
+        created_at: nation.created_at
+      }
+    });
+  } catch (err) {
+    console.error('Fetch me error:', err);
+    res.status(500).json({ error: 'Failed to fetch nation profile' });
+  }
 });
 
 // Update Nation Currency & USD Exchange Rate Settings
-router.post('/update-currency', authenticateNation, (req, res) => {
+router.post('/update-currency', authenticateNation, async (req, res) => {
   try {
     const { currencyName, currencySymbol, usdExchangeRate } = req.body;
 
@@ -158,15 +163,15 @@ router.post('/update-currency', authenticateNation, (req, res) => {
       return res.status(400).json({ error: 'Exchange rate must be a positive number' });
     }
 
-    db.prepare(`
+    await db.run(`
       UPDATE nations SET
         currency_name = ?,
         currency_symbol = ?,
         usd_exchange_rate = ?
       WHERE id = ?
-    `).run(currencyName.trim(), currencySymbol.trim(), rate, req.nation.id);
+    `, [currencyName.trim(), currencySymbol.trim(), rate, req.nation.id]);
 
-    const updated = db.prepare('SELECT * FROM nations WHERE id = ?').get(req.nation.id);
+    const updated = await db.get('SELECT * FROM nations WHERE id = ?', [req.nation.id]);
 
     res.json({
       message: 'Currency settings updated successfully',
@@ -179,21 +184,16 @@ router.post('/update-currency', authenticateNation, (req, res) => {
 });
 
 // Reset Sandbox for current nation
-router.post('/reset-sandbox', authenticateNation, (req, res) => {
+router.post('/reset-sandbox', authenticateNation, async (req, res) => {
   try {
     const nationId = req.nation.id;
     const initialCash = req.nation.starting_balance_usd || 100000.0;
 
-    const resetTx = db.transaction(() => {
-      // Clear holdings
-      db.prepare('DELETE FROM portfolios WHERE nation_id = ?').run(nationId);
-      // Clear orders
-      db.prepare('DELETE FROM orders WHERE nation_id = ?').run(nationId);
-      // Reset cash balance
-      db.prepare('UPDATE nations SET cash_balance_usd = ? WHERE id = ?').run(initialCash, nationId);
-    });
-
-    resetTx();
+    await db.batch([
+      { sql: 'DELETE FROM portfolios WHERE nation_id = ?', args: [nationId] },
+      { sql: 'DELETE FROM orders WHERE nation_id = ?', args: [nationId] },
+      { sql: 'UPDATE nations SET cash_balance_usd = ? WHERE id = ?', args: [initialCash, nationId] }
+    ]);
 
     res.json({
       message: 'Sandbox successfully reset to default starting balance of $100,000 USD',
@@ -206,9 +206,9 @@ router.post('/reset-sandbox', authenticateNation, (req, res) => {
 });
 
 // List all registered nations & their forex exchange rates
-router.get('/nations', (req, res) => {
+router.get('/nations', async (req, res) => {
   try {
-    const nations = db.prepare(`
+    const nations = await db.all(`
       SELECT 
         n.id, n.name, n.currency_name, n.currency_symbol, n.usd_exchange_rate,
         n.cash_balance_usd, n.created_at,
@@ -218,7 +218,7 @@ router.get('/nations', (req, res) => {
       LEFT JOIN assets a ON p.asset_id = a.id
       GROUP BY n.id
       ORDER BY (n.cash_balance_usd + COALESCE(SUM(p.quantity * a.current_price_usd), 0)) DESC
-    `).all();
+    `);
 
     const formatted = nations.map(n => ({
       id: n.id,
@@ -227,8 +227,8 @@ router.get('/nations', (req, res) => {
       currency_symbol: n.currency_symbol,
       usd_exchange_rate: n.usd_exchange_rate,
       cash_balance_usd: n.cash_balance_usd,
-      portfolio_value_usd: +n.portfolio_value_usd.toFixed(2),
-      net_worth_usd: +(n.cash_balance_usd + n.portfolio_value_usd).toFixed(2),
+      portfolio_value_usd: +Number(n.portfolio_value_usd).toFixed(2),
+      net_worth_usd: +(Number(n.cash_balance_usd) + Number(n.portfolio_value_usd)).toFixed(2),
       created_at: n.created_at
     }));
 

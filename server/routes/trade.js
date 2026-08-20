@@ -5,7 +5,7 @@ const db = require('../db');
 const { authenticateNation } = require('./auth');
 
 // Execute a Trade (BUY or SELL)
-router.post('/order', authenticateNation, (req, res) => {
+router.post('/order', authenticateNation, async (req, res) => {
   try {
     const { assetId, ticker, side, quantity } = req.body;
     const nation = req.nation;
@@ -23,88 +23,100 @@ router.post('/order', authenticateNation, (req, res) => {
     // Find asset
     let asset;
     if (assetId) {
-      asset = db.prepare('SELECT * FROM assets WHERE id = ? AND is_delisted = 0').get(assetId);
+      asset = await db.get('SELECT * FROM assets WHERE id = ? AND is_delisted = 0', [assetId]);
     } else if (ticker) {
-      asset = db.prepare('SELECT * FROM assets WHERE UPPER(ticker) = UPPER(?) AND is_delisted = 0').get(ticker);
+      asset = await db.get('SELECT * FROM assets WHERE UPPER(ticker) = UPPER(?) AND is_delisted = 0', [ticker]);
     }
 
     if (!asset) {
       return res.status(404).json({ error: 'Asset not found or delisted' });
     }
 
-    const price = asset.current_price_usd;
+    const price = Number(asset.current_price_usd);
     const totalCostUsd = +(price * qty).toFixed(2);
 
-    let portfolioRecord = db.prepare('SELECT * FROM portfolios WHERE nation_id = ? AND asset_id = ?').get(nation.id, asset.id);
+    let portfolioRecord = await db.get('SELECT * FROM portfolios WHERE nation_id = ? AND asset_id = ?', [nation.id, asset.id]);
+    const freshNation = await db.get('SELECT cash_balance_usd FROM nations WHERE id = ?', [nation.id]);
 
-    const tradeTx = db.transaction(() => {
-      if (orderSide === 'BUY') {
-        // Check nation cash balance
-        const freshNation = db.prepare('SELECT cash_balance_usd FROM nations WHERE id = ?').get(nation.id);
-        if (freshNation.cash_balance_usd < totalCostUsd) {
-          throw new Error(`Insufficient funds: Order requires $${totalCostUsd.toLocaleString()} USD, but cash balance is $${freshNation.cash_balance_usd.toLocaleString()} USD`);
-        }
+    const batchStatements = [];
 
-        // Deduct cash
-        db.prepare('UPDATE nations SET cash_balance_usd = cash_balance_usd - ? WHERE id = ?').run(totalCostUsd, nation.id);
-
-        if (portfolioRecord) {
-          // Update weighted average buy price
-          const oldTotalCost = portfolioRecord.quantity * portfolioRecord.average_buy_price_usd;
-          const newQty = portfolioRecord.quantity + qty;
-          const newAvgPrice = +((oldTotalCost + totalCostUsd) / newQty).toFixed(4);
-
-          db.prepare(`
-            UPDATE portfolios SET
-              quantity = ?,
-              average_buy_price_usd = ?
-            WHERE id = ?
-          `).run(newQty, newAvgPrice, portfolioRecord.id);
-        } else {
-          // Insert new holding
-          db.prepare(`
-            INSERT INTO portfolios (nation_id, asset_id, quantity, average_buy_price_usd, total_dividends_earned_usd)
-            VALUES (?, ?, ?, ?, 0)
-          `).run(nation.id, asset.id, qty, price);
-        }
-      } else {
-        // SELL
-        if (!portfolioRecord || portfolioRecord.quantity < qty) {
-          const available = portfolioRecord ? portfolioRecord.quantity : 0;
-          throw new Error(`Insufficient holdings: You own ${available} units of ${asset.ticker}, cannot sell ${qty}`);
-        }
-
-        // Add cash
-        db.prepare('UPDATE nations SET cash_balance_usd = cash_balance_usd + ? WHERE id = ?').run(totalCostUsd, nation.id);
-
-        const remainingQty = portfolioRecord.quantity - qty;
-        if (remainingQty <= 0.000001) {
-          db.prepare('DELETE FROM portfolios WHERE id = ?').run(portfolioRecord.id);
-        } else {
-          db.prepare('UPDATE portfolios SET quantity = ? WHERE id = ?').run(remainingQty, portfolioRecord.id);
-        }
+    if (orderSide === 'BUY') {
+      if (freshNation.cash_balance_usd < totalCostUsd) {
+        return res.status(400).json({
+          error: `Insufficient funds: Order requires $${totalCostUsd.toLocaleString()} USD, but cash balance is $${Number(freshNation.cash_balance_usd).toLocaleString()} USD`
+        });
       }
 
-      // Record order history
-      const orderId = uuidv4();
-      db.prepare(`
-        INSERT INTO orders (id, nation_id, asset_id, side, type, execution_price_usd, quantity, total_usd, status, timestamp)
-        VALUES (?, ?, ?, ?, 'MARKET', ?, ?, ?, 'FILLED', ?)
-      `).run(orderId, nation.id, asset.id, orderSide, price, qty, totalCostUsd, Date.now());
+      // Deduct cash
+      batchStatements.push({
+        sql: 'UPDATE nations SET cash_balance_usd = cash_balance_usd - ? WHERE id = ?',
+        args: [totalCostUsd, nation.id]
+      });
 
-      // Update asset 24h volume
-      db.prepare('UPDATE assets SET volume_24h = volume_24h + ? WHERE id = ?').run(qty, asset.id);
-    });
+      if (portfolioRecord) {
+        const oldTotalCost = Number(portfolioRecord.quantity) * Number(portfolioRecord.average_buy_price_usd);
+        const newQty = Number(portfolioRecord.quantity) + qty;
+        const newAvgPrice = +((oldTotalCost + totalCostUsd) / newQty).toFixed(4);
 
-    try {
-      tradeTx();
-    } catch (err) {
-      return res.status(400).json({ error: err.message });
+        batchStatements.push({
+          sql: 'UPDATE portfolios SET quantity = ?, average_buy_price_usd = ? WHERE id = ?',
+          args: [newQty, newAvgPrice, portfolioRecord.id]
+        });
+      } else {
+        batchStatements.push({
+          sql: 'INSERT INTO portfolios (nation_id, asset_id, quantity, average_buy_price_usd, total_dividends_earned_usd) VALUES (?, ?, ?, ?, 0)',
+          args: [nation.id, asset.id, qty, price]
+        });
+      }
+    } else {
+      // SELL
+      if (!portfolioRecord || Number(portfolioRecord.quantity) < qty) {
+        const available = portfolioRecord ? Number(portfolioRecord.quantity) : 0;
+        return res.status(400).json({
+          error: `Insufficient holdings: You own ${available} units of ${asset.ticker}, cannot sell ${qty}`
+        });
+      }
+
+      // Add cash
+      batchStatements.push({
+        sql: 'UPDATE nations SET cash_balance_usd = cash_balance_usd + ? WHERE id = ?',
+        args: [totalCostUsd, nation.id]
+      });
+
+      const remainingQty = Number(portfolioRecord.quantity) - qty;
+      if (remainingQty <= 0.000001) {
+        batchStatements.push({
+          sql: 'DELETE FROM portfolios WHERE id = ?',
+          args: [portfolioRecord.id]
+        });
+      } else {
+        batchStatements.push({
+          sql: 'UPDATE portfolios SET quantity = ? WHERE id = ?',
+          args: [remainingQty, portfolioRecord.id]
+        });
+      }
     }
 
+    // Record order history
+    const orderId = uuidv4();
+    batchStatements.push({
+      sql: `INSERT INTO orders (id, nation_id, asset_id, side, type, execution_price_usd, quantity, total_usd, status, timestamp)
+            VALUES (?, ?, ?, ?, 'MARKET', ?, ?, ?, 'FILLED', ?)`,
+      args: [orderId, nation.id, asset.id, orderSide, price, qty, totalCostUsd, Date.now()]
+    });
+
+    // Update asset 24h volume
+    batchStatements.push({
+      sql: 'UPDATE assets SET volume_24h = volume_24h + ? WHERE id = ?',
+      args: [qty, asset.id]
+    });
+
+    // Execute atomically
+    await db.batch(batchStatements);
+
     // Return updated balance & position
-    const updatedNation = db.prepare('SELECT cash_balance_usd FROM nations WHERE id = ?').get(nation.id);
-    const updatedPosition = db.prepare('SELECT * FROM portfolios WHERE nation_id = ? AND asset_id = ?').get(nation.id, asset.id);
+    const updatedNation = await db.get('SELECT cash_balance_usd FROM nations WHERE id = ?', [nation.id]);
+    const updatedPosition = await db.get('SELECT * FROM portfolios WHERE nation_id = ? AND asset_id = ?', [nation.id, asset.id]);
 
     res.json({
       message: `Successfully executed ${orderSide} order for ${qty} ${asset.ticker} at $${price.toFixed(2)} USD`,
@@ -120,16 +132,16 @@ router.post('/order', authenticateNation, (req, res) => {
     });
   } catch (err) {
     console.error('Trade order error:', err);
-    res.status(500).json({ error: 'Failed to execute order' });
+    res.status(500).json({ error: 'Failed to execute order: ' + err.message });
   }
 });
 
 // Get nation's complete portfolio
-router.get('/portfolio', authenticateNation, (req, res) => {
+router.get('/portfolio', authenticateNation, async (req, res) => {
   try {
     const nationId = req.nation.id;
 
-    const holdings = db.prepare(`
+    const holdings = await db.all(`
       SELECT 
         p.id as portfolio_id,
         p.asset_id,
@@ -147,15 +159,15 @@ router.get('/portfolio', authenticateNation, (req, res) => {
       JOIN assets a ON p.asset_id = a.id
       WHERE p.nation_id = ? AND p.quantity > 0
       ORDER BY (p.quantity * a.current_price_usd) DESC
-    `).all(nationId);
+    `, [nationId]);
 
     let totalPortfolioValueUsd = 0;
     let totalUnrealizedPnlUsd = 0;
     let totalInvestedUsd = 0;
 
     const formattedHoldings = holdings.map(h => {
-      const marketValueUsd = +(h.quantity * h.current_price_usd).toFixed(2);
-      const costBasisUsd = +(h.quantity * h.average_buy_price_usd).toFixed(2);
+      const marketValueUsd = +(Number(h.quantity) * Number(h.current_price_usd)).toFixed(2);
+      const costBasisUsd = +(Number(h.quantity) * Number(h.average_buy_price_usd)).toFixed(2);
       const pnlUsd = +(marketValueUsd - costBasisUsd).toFixed(2);
       const pnlPercent = costBasisUsd > 0 ? +((pnlUsd / costBasisUsd) * 100).toFixed(2) : 0;
 
@@ -172,11 +184,11 @@ router.get('/portfolio', authenticateNation, (req, res) => {
       };
     });
 
-    const freshNation = db.prepare('SELECT cash_balance_usd, currency_name, currency_symbol, usd_exchange_rate, starting_balance_usd FROM nations WHERE id = ?').get(nationId);
-    const netWorthUsd = +(freshNation.cash_balance_usd + totalPortfolioValueUsd).toFixed(2);
-    const totalAllTimePnlUsd = +(netWorthUsd - freshNation.starting_balance_usd).toFixed(2);
+    const freshNation = await db.get('SELECT cash_balance_usd, currency_name, currency_symbol, usd_exchange_rate, starting_balance_usd FROM nations WHERE id = ?', [nationId]);
+    const netWorthUsd = +(Number(freshNation.cash_balance_usd) + totalPortfolioValueUsd).toFixed(2);
+    const totalAllTimePnlUsd = +(netWorthUsd - Number(freshNation.starting_balance_usd)).toFixed(2);
     const totalAllTimePnlPercent = freshNation.starting_balance_usd > 0 
-      ? +((totalAllTimePnlUsd / freshNation.starting_balance_usd) * 100).toFixed(2) 
+      ? +((totalAllTimePnlUsd / Number(freshNation.starting_balance_usd)) * 100).toFixed(2) 
       : 0;
 
     res.json({
@@ -196,9 +208,9 @@ router.get('/portfolio', authenticateNation, (req, res) => {
 });
 
 // Get trade execution history
-router.get('/history', authenticateNation, (req, res) => {
+router.get('/history', authenticateNation, async (req, res) => {
   try {
-    const orders = db.prepare(`
+    const orders = await db.all(`
       SELECT 
         o.id, o.side, o.type, o.execution_price_usd, o.quantity, o.total_usd, o.status, o.timestamp,
         a.ticker, a.name as asset_name, a.type as asset_type
@@ -207,7 +219,7 @@ router.get('/history', authenticateNation, (req, res) => {
       WHERE o.nation_id = ?
       ORDER BY o.timestamp DESC
       LIMIT 50
-    `).all(req.nation.id);
+    `, [req.nation.id]);
 
     res.json({ orders });
   } catch (err) {

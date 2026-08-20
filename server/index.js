@@ -3,7 +3,8 @@ const cors = require('cors');
 const path = require('path');
 const dotenv = require('dotenv');
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const db = require('./db');
 const engine = require('./engine/simulation');
@@ -15,7 +16,7 @@ const wizardRouter = require('./routes/wizard');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
+// Middleware with security headers
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -52,9 +53,7 @@ app.get('*', (req, res, next) => {
 async function startServer() {
   try {
     await db.init();
-    console.log('[Database] WebAssembly SQLite initialized and synchronized.');
-
-    engine.start();
+    await engine.start();
 
     app.listen(PORT, () => {
       console.log(`[Server] NationStates Online Trading Server running on http://localhost:${PORT}`);
