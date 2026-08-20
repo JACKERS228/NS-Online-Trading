@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
-  Globe2, ArrowRightLeft, Trophy, Sparkles
+  Globe2, ArrowRightLeft, Trophy
 } from 'lucide-react';
 
 export default React.memo(function ForexAndNations() {
-  const { nation, formatMoney, formatRawUSD } = useAuth();
+  const { nation } = useAuth();
   const [nationsList, setNationsList] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,13 +37,12 @@ export default React.memo(function ForexAndNations() {
   const sourceNation = nationsList.find(n => n.id === sourceNationId) || (nation?.id === sourceNationId ? nation : nationsList[0]);
   const targetNation = targetNationId === 'usd_benchmark' ? null : nationsList.find(n => n.id === targetNationId);
 
-  // Compute Cross-Currency Conversion
   const sourceAmount = Math.max(0, Number(inputAmount) || 0);
   const sourceRate = sourceNation ? Number(sourceNation.usd_exchange_rate) || 1.0 : 1.0;
   const amountInUSD = sourceAmount / sourceRate;
 
   let targetAmount = 0;
-  let targetCurrencyLabel = '$ USD';
+  let targetCurrencyLabel = 'USD ($)';
   let targetSymbol = '$';
 
   if (targetNationId === 'usd_benchmark' || !targetNation) {
@@ -62,7 +61,7 @@ export default React.memo(function ForexAndNations() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       
-      {/* Header Banner */}
+      {/* Header */}
       <div className="p-6 rounded-2xl bg-gradient-to-r from-dark-900 via-dark-850 to-dark-900 border border-white/10 shadow-2xl flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-brand-cyan/10 border border-brand-cyan/20 text-brand-cyan flex items-center justify-center shadow-lg shadow-brand-cyan/10">
@@ -70,27 +69,27 @@ export default React.memo(function ForexAndNations() {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-white">
-              Currency Converter & Nations Leaderboard
+              Nations & Currencies
             </h1>
             <p className="text-xs sm:text-sm text-slate-400">
-              Convert money between any nation's currency and see who tops the global wealth leaderboard.
+              Convert currencies and view the global wealth leaderboard.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Interactive Cross-Currency Converter */}
+      {/* Converter */}
       <div className="p-6 rounded-2xl bg-dark-900 border border-brand-cyan/30 shadow-2xl space-y-5">
         <div className="flex items-center gap-2 text-sm font-bold text-white border-b border-white/5 pb-3">
           <ArrowRightLeft className="w-5 h-5 text-brand-cyan" />
-          Live Currency Converter
+          Currency Converter
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
           
           {/* Source Currency */}
           <div className="lg:col-span-5 p-4 rounded-xl bg-dark-850 border border-white/10 space-y-3">
-            <label className="block text-xs font-semibold text-slate-300">Starting Currency:</label>
+            <label className="block text-xs font-semibold text-slate-300">From:</label>
             <select
               value={sourceNationId}
               onChange={(e) => setSourceNationId(e.target.value)}
@@ -104,7 +103,7 @@ export default React.memo(function ForexAndNations() {
             </select>
 
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1">Amount to Convert:</label>
+              <label className="block text-[11px] text-slate-400 mb-1">Amount:</label>
               <div className="relative">
                 <input
                   type="number"
@@ -120,7 +119,7 @@ export default React.memo(function ForexAndNations() {
             </div>
           </div>
 
-          {/* Swap Indicator (2 cols) */}
+          {/* Swap Indicator */}
           <div className="lg:col-span-2 text-center py-2">
             <div className="w-10 h-10 rounded-full bg-dark-800 border border-white/10 text-brand-cyan flex items-center justify-center mx-auto shadow-md">
               <ArrowRightLeft className="w-5 h-5" />
@@ -130,15 +129,15 @@ export default React.memo(function ForexAndNations() {
             </span>
           </div>
 
-          {/* Target Currency (5 cols) */}
+          {/* Target Currency */}
           <div className="lg:col-span-5 p-4 rounded-xl bg-dark-850 border border-white/10 space-y-3">
-            <label className="block text-xs font-semibold text-slate-300">Convert Into:</label>
+            <label className="block text-xs font-semibold text-slate-300">To:</label>
             <select
               value={targetNationId}
               onChange={(e) => setTargetNationId(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-dark-900 border border-white/10 text-white text-xs focus:outline-none focus:border-brand-cyan"
             >
-              <option value="usd_benchmark">US Dollars ($ USD)</option>
+              <option value="usd_benchmark">USD ($)</option>
               {nationsList.map(n => (
                 <option key={n.id} value={n.id}>
                   {n.name} — {n.currency_symbol} {n.currency_name} (1 USD = {n.usd_exchange_rate})
@@ -158,14 +157,14 @@ export default React.memo(function ForexAndNations() {
         </div>
       </div>
 
-      {/* Sovereign Nations Directory & Wealth Leaderboard */}
+      {/* Leaderboard */}
       <div className="p-6 rounded-2xl bg-dark-900 border border-white/10 shadow-xl space-y-4">
         <div className="flex items-center justify-between border-b border-white/5 pb-3">
           <div className="flex items-center gap-2 text-sm font-bold text-white">
             <Trophy className="w-5 h-5 text-brand-gold" />
-            Global Nation Wealth Leaderboard
+            Nation Leaderboard
           </div>
-          <span className="text-xs font-mono text-slate-400">{nationsList.length} Nations Competing</span>
+          <span className="text-xs font-mono text-slate-400">{nationsList.length} Registered</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -173,11 +172,11 @@ export default React.memo(function ForexAndNations() {
             <thead>
               <tr className="border-b border-white/10 bg-dark-950/60 text-slate-400 text-[11px]">
                 <th className="p-3.5">Rank</th>
-                <th className="p-3.5">Nation Name</th>
-                <th className="p-3.5">National Currency</th>
-                <th className="p-3.5">USD Exchange Rate</th>
-                <th className="p-3.5">Available Cash</th>
-                <th className="p-3.5 text-right">Total Net Worth (USD)</th>
+                <th className="p-3.5">Nation</th>
+                <th className="p-3.5">Currency</th>
+                <th className="p-3.5">USD Rate</th>
+                <th className="p-3.5">Cash</th>
+                <th className="p-3.5 text-right">Net Worth (USD)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">

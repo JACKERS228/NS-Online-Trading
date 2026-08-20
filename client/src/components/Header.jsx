@@ -4,7 +4,7 @@ import { useMarket } from '../context/MarketContext';
 import { 
   TrendingUp, Building2, Coins, Package, Briefcase, 
   Globe2, Newspaper, LogIn, LogOut, RotateCcw, 
-  ChevronDown, DollarSign, Activity, Radio, HelpCircle
+  ChevronDown, DollarSign, Activity, Radio
 } from 'lucide-react';
 import CurrencySettingsModal from './CurrencySettingsModal';
 
@@ -56,30 +56,30 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
       setConfirmResetOpen(false);
       setSettingsOpen(false);
     } catch (err) {
-      alert('Failed to reset starting cash: ' + err.message);
+      alert('Failed to reset account: ' + err.message);
     }
   }, [resetSandbox]);
 
   const tabs = [
-    { id: 'terminal', label: 'Trading Desk', icon: TrendingUp },
-    { id: 'wizard', label: 'Create Company', icon: Building2 },
-    { id: 'crypto', label: 'Create Crypto', icon: Coins },
-    { id: 'commodities', label: 'Raw Commodities', icon: Package },
-    { id: 'portfolio', label: 'My Portfolio & Profits', icon: Briefcase },
-    { id: 'forex', label: 'Currencies & Nations', icon: Globe2 },
-    { id: 'news', label: 'Market News', icon: Newspaper },
+    { id: 'terminal', label: 'Trade', icon: TrendingUp },
+    { id: 'wizard', label: 'Companies', icon: Building2 },
+    { id: 'crypto', label: 'Crypto', icon: Coins },
+    { id: 'commodities', label: 'Commodities', icon: Package },
+    { id: 'portfolio', label: 'Portfolio', icon: Briefcase },
+    { id: 'forex', label: 'Nations', icon: Globe2 },
+    { id: 'news', label: 'News', icon: Newspaper },
   ];
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-dark-950/95 backdrop-blur-lg">
       
       {/* 1. Scrolling Market Ticker Tape */}
-      <div className="w-full bg-dark-900/90 border-b border-white/5 py-1 px-3 overflow-x-auto no-scrollbar flex items-center gap-5 text-[11px] font-mono">
-        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-brand-green/10 text-brand-green border border-brand-green/20 text-[10px] uppercase font-bold tracking-wider shrink-0">
-          <Radio className="w-3 h-3 animate-pulse" /> Live Prices
+      <div className="w-full bg-dark-900/90 border-b border-white/5 py-1 px-3 overflow-x-auto no-scrollbar flex items-center gap-4 text-[11px] font-mono">
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-brand-green/10 text-brand-green border border-brand-green/20 text-[10px] uppercase font-bold shrink-0">
+          <Radio className="w-3 h-3 animate-pulse" /> Live
         </div>
 
-        <div className="flex items-center gap-4 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           {assets.map((asset) => (
             <TickerTapeItem
               key={asset.id}
@@ -106,12 +106,9 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
               <span className="text-base font-extrabold tracking-tight text-white">
                 NS <span className="text-brand-cyan">TRADING</span>
               </span>
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-brand-green/15 text-brand-green border border-brand-green/30">
-                Game
-              </span>
             </div>
             <p className="text-[10px] text-slate-400 hidden sm:block">
-              NationStates Stock & Commodity Trading Simulation
+              Stock & Commodity Market
             </p>
           </div>
         </div>
@@ -125,7 +122,7 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   isActive
                     ? 'bg-dark-750 text-white shadow-sm border border-white/10 text-brand-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-dark-850'
@@ -145,14 +142,14 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
           {nation && (
             <button
               onClick={() => setUseNationalCurrency(!useNationalCurrency)}
-              title="Click to switch between showing prices in your National Currency or US Dollars (USD)"
+              title="Toggle Currency"
               className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-dark-900 border border-white/10 hover:border-brand-cyan/40 text-xs transition cursor-pointer"
             >
               <DollarSign className="w-3.5 h-3.5 text-brand-gold" />
               <div className="text-left font-mono">
-                <span className="text-[10px] text-slate-400 block leading-none">Showing in</span>
+                <span className="text-[10px] text-slate-400 block leading-none">Currency</span>
                 <span className="font-bold text-brand-cyan text-[11px]">
-                  {useNationalCurrency ? `${nation.currency_symbol} ${nation.currency_name}` : 'USD ($)'}
+                  {useNationalCurrency ? `${nation.currency_symbol} ${nation.currency_name}` : 'USD'}
                 </span>
               </div>
             </button>
@@ -161,7 +158,7 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
           {/* Cash Balance Display */}
           {nation ? (
             <div className="text-right font-mono px-3 py-1 rounded-xl bg-dark-900/80 border border-white/5">
-              <span className="text-[10px] text-slate-400 block leading-tight">Available Cash</span>
+              <span className="text-[10px] text-slate-400 block leading-tight">Cash</span>
               <span className="text-xs font-bold text-brand-green">
                 {formatMoney(nation.cash_balance_usd)}
               </span>
@@ -171,7 +168,7 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
               onClick={() => setAuthModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-brand-green to-emerald-600 hover:from-brand-green-dim text-dark-950 font-bold text-xs shadow-md transition cursor-pointer"
             >
-              <LogIn className="w-3.5 h-3.5" /> Sign In Nation
+              <LogIn className="w-3.5 h-3.5" /> Sign In
             </button>
           )}
 
@@ -190,12 +187,12 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
 
               {/* Dropdown Menu */}
               {settingsOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-dark-900 border border-white/10 shadow-2xl p-2 z-50 animate-fadeIn">
+                <div className="absolute right-0 mt-2 w-60 rounded-2xl bg-dark-900 border border-white/10 shadow-2xl p-2 z-50 animate-fadeIn">
                   <div className="p-3 border-b border-white/5">
                     <div className="text-xs font-bold text-white truncate">{nation.name}</div>
                     <div className="text-[11px] text-slate-400 flex items-center justify-between mt-1">
-                      <span>Rate: 1 USD =</span>
-                      <span className="font-mono text-brand-cyan">{nation.usd_exchange_rate} {nation.currency_symbol}</span>
+                      <span>Rate:</span>
+                      <span className="font-mono text-brand-cyan">1 USD = {nation.usd_exchange_rate} {nation.currency_symbol}</span>
                     </div>
                   </div>
 
@@ -205,18 +202,18 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
                         setCurrencyModalOpen(true);
                         setSettingsOpen(false);
                       }}
-                      className="w-full px-3 py-2 rounded-lg text-xs text-left text-slate-300 hover:bg-dark-800 flex items-center gap-2.5 transition"
+                      className="w-full px-3 py-2 rounded-lg text-xs text-left text-slate-300 hover:bg-dark-800 flex items-center gap-2.5 transition cursor-pointer"
                     >
-                      <Coins className="w-4 h-4 text-brand-gold" /> Currency & Exchange Rate
+                      <Coins className="w-4 h-4 text-brand-gold" /> Currency Settings
                     </button>
 
                     <button
                       onClick={() => {
                         setConfirmResetOpen(true);
                       }}
-                      className="w-full px-3 py-2 rounded-lg text-xs text-left text-amber-400 hover:bg-dark-800 flex items-center gap-2.5 transition"
+                      className="w-full px-3 py-2 rounded-lg text-xs text-left text-amber-400 hover:bg-dark-800 flex items-center gap-2.5 transition cursor-pointer"
                     >
-                      <RotateCcw className="w-4 h-4 text-amber-400" /> Reset Starting Cash ($100k)
+                      <RotateCcw className="w-4 h-4 text-amber-400" /> Reset to $100k
                     </button>
 
                     <button
@@ -224,7 +221,7 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
                         logout();
                         setSettingsOpen(false);
                       }}
-                      className="w-full px-3 py-2 rounded-lg text-xs text-left text-brand-red hover:bg-dark-800 flex items-center gap-2.5 transition"
+                      className="w-full px-3 py-2 rounded-lg text-xs text-left text-brand-red hover:bg-dark-800 flex items-center gap-2.5 transition cursor-pointer"
                     >
                       <LogOut className="w-4 h-4 text-brand-red" /> Sign Out
                     </button>
@@ -271,9 +268,9 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
             <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto">
               <RotateCcw className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-bold text-white">Reset to Starting Cash?</h3>
+            <h3 className="text-base font-bold text-white">Reset Account?</h3>
             <p className="text-xs text-slate-300 leading-relaxed">
-              This will reset your cash back to the starting <strong>$100,000 USD</strong> balance and clear your open stock positions.
+              This resets your cash balance to <strong>$100,000 USD</strong> and clears your positions.
             </p>
             <div className="flex gap-3 pt-2">
               <button
@@ -286,7 +283,7 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
                 onClick={handleReset}
                 className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-dark-950 text-xs font-bold cursor-pointer"
               >
-                Confirm Reset
+                Reset
               </button>
             </div>
           </div>

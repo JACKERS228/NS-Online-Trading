@@ -8,18 +8,18 @@ import {
 import confetti from 'canvas-confetti';
 
 const CATEGORIES = [
-  { id: 'Sovereign National Reserve', label: 'National Digital Currency', icon: ShieldCheck, desc: 'Official digital currency backed by your government' },
-  { id: 'DeFi & Yield Protocol', label: 'Interest & Rewards Coin', icon: Zap, desc: 'Pays holders automated annual interest rewards' },
-  { id: 'Meme & Community Hype', label: 'Viral Meme Coin', icon: Flame, desc: 'High-energy community coin driven by internet hype' },
-  { id: 'Autonomous Utility', label: 'Tech Utility Coin', icon: Rocket, desc: 'Used as digital fuel to pay for apps and services' },
+  { id: 'Sovereign National Reserve', label: 'National Reserve', icon: ShieldCheck, desc: 'Central bank treasury token' },
+  { id: 'DeFi & Yield Protocol', label: 'Staking & Yield', icon: Zap, desc: 'Automated rewards token' },
+  { id: 'Meme & Community Hype', label: 'Meme Coin', icon: Flame, desc: 'Community-driven viral token' },
+  { id: 'Autonomous Utility', label: 'Utility Token', icon: Rocket, desc: 'App & service compute fuel' },
 ];
 
 const SUPPLIES = {
-  1: { name: 'Ultra-Rare Supply', supply: 1000000, label: '1 Million Coins' },
-  2: { name: 'Standard Supply', supply: 21000000, label: '21 Million Coins (Like Bitcoin)' },
-  3: { name: 'Large Supply', supply: 100000000, label: '100 Million Coins' },
-  4: { name: 'Massive Supply', supply: 1000000000, label: '1 Billion Coins' },
-  5: { name: 'Hyper Supply', supply: 100000000000, label: '100 Billion Coins (Like Doge)' },
+  1: { name: 'Ultra-Rare', supply: 1000000, label: '1 Million' },
+  2: { name: 'Standard', supply: 21000000, label: '21 Million' },
+  3: { name: 'Large', supply: 100000000, label: '100 Million' },
+  4: { name: 'Massive', supply: 1000000000, label: '1 Billion' },
+  5: { name: 'Hyper Supply', supply: 100000000000, label: '100 Billion' },
 };
 
 const BASE_PRICES = {
@@ -115,7 +115,7 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       
-      {/* Launchpad Header Banner */}
+      {/* Header Banner */}
       <div className="p-6 rounded-2xl bg-gradient-to-r from-dark-900 via-purple-950/40 to-dark-900 border border-purple-500/20 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shadow-lg shadow-purple-500/10">
@@ -123,46 +123,46 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-white">
-              Create Your Own Cryptocurrency
+              Create Cryptocurrency
             </h1>
             <p className="text-xs sm:text-sm text-slate-400">
-              Mint custom sovereign coins, meme tokens, or rewards protocols and let players trade them globally.
+              Launch a new crypto token with custom supply and staking rewards.
             </p>
           </div>
         </div>
 
         {nation && (
           <div className="p-3 rounded-xl bg-dark-950/80 border border-white/5 font-mono text-xs text-right shrink-0">
-            <span className="text-slate-400 block text-[10px]">Issued By Nation</span>
+            <span className="text-slate-400 block text-[10px]">Issuer</span>
             <span className="font-bold text-purple-400">{nation.name}</span>
           </div>
         )}
       </div>
 
-      {/* Success Notification */}
+      {/* Success Card */}
       {successToken && (
         <div className="p-6 rounded-2xl bg-dark-900 border border-purple-500/40 shadow-2xl space-y-4 animate-fadeIn">
           <div className="flex items-center gap-3 text-purple-400">
             <CheckCircle2 className="w-8 h-8" />
             <div>
-              <h2 className="text-lg font-bold text-white">Cryptocurrency Created Successfully!</h2>
+              <h2 className="text-lg font-bold text-white">Token Created!</h2>
               <p className="text-xs text-slate-300">
-                <strong>{successToken.name}</strong> ({successToken.ticker}) is now live on the exchange!
+                <strong>{successToken.name}</strong> ({successToken.ticker}) is now live.
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-dark-950/60 font-mono text-xs">
             <div>
-              <span className="text-slate-400 block">Starting Coin Price:</span>
-              <span className="text-base font-bold text-white">${Number(successToken.current_price_usd).toFixed(4)} USD</span>
+              <span className="text-slate-400 block">Starting Price:</span>
+              <span className="text-base font-bold text-white">${Number(successToken.current_price_usd).toFixed(4)}</span>
             </div>
             <div>
-              <span className="text-slate-400 block">Your Free Founder Stash (10%):</span>
+              <span className="text-slate-400 block">Your Stash (10%):</span>
               <span className="text-base font-bold text-purple-400">{tokenomics.founderAllocation.toLocaleString()} {successToken.ticker}</span>
             </div>
             <div>
-              <span className="text-slate-400 block">Total Coin Value:</span>
+              <span className="text-slate-400 block">Market Cap:</span>
               <span className="text-base font-bold text-brand-green">{formatMoney(successToken.market_cap_usd)}</span>
             </div>
           </div>
@@ -175,7 +175,7 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
               }}
               className="py-2.5 px-5 rounded-xl bg-purple-500 hover:bg-purple-400 text-dark-950 font-bold text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-purple-500/20"
             >
-              <TrendingUp className="w-4 h-4" /> Go Trade {successToken.ticker}
+              <TrendingUp className="w-4 h-4" /> Trade {successToken.ticker}
             </button>
             <button
               onClick={() => {
@@ -185,13 +185,13 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
               }}
               className="py-2.5 px-4 rounded-xl bg-dark-800 hover:bg-dark-750 text-slate-300 text-xs font-semibold cursor-pointer"
             >
-              Create Another Coin
+              Create Another
             </button>
           </div>
         </div>
       )}
 
-      {/* Minting Form Grid */}
+      {/* Form */}
       <form onSubmit={handleMintGenesis} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Left Inputs (7 cols) */}
@@ -200,27 +200,27 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
           <div className="p-5 rounded-2xl bg-dark-900 border border-white/10 shadow-xl space-y-4">
             <div className="flex items-center gap-2 text-sm font-bold text-white border-b border-white/5 pb-2">
               <span className="w-6 h-6 rounded-full bg-purple-500/10 text-purple-400 text-xs flex items-center justify-center font-mono">1</span>
-              Coin Name & Type
+              Token Info
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Coin Name <span className="text-purple-400">*</span>
+                  Token Name <span className="text-purple-400">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={tokenName}
                   onChange={(e) => setTokenName(e.target.value)}
-                  placeholder="e.g. Solaria Digital Credit"
+                  placeholder="e.g. Solaris Credit"
                   className="w-full px-4 py-2.5 rounded-xl bg-dark-850 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-400"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Coin Symbol (Ticker) <span className="text-purple-400">*</span>
+                  Ticker Symbol <span className="text-purple-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -228,7 +228,7 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
                   maxLength={6}
                   value={ticker}
                   onChange={(e) => setTicker(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                  placeholder="e.g. SDC (3-5 letters)"
+                  placeholder="e.g. SOC"
                   className="w-full px-4 py-2.5 rounded-xl bg-dark-850 border border-white/10 text-white font-mono text-sm uppercase focus:outline-none focus:border-purple-400"
                 />
               </div>
@@ -237,9 +237,9 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
             {/* Category Cards */}
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-2">
-                What kind of coin is this?
+                Token Type
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {CATEGORIES.map((c) => {
                   const Icon = c.icon;
                   const isSelected = category === c.id;
@@ -248,13 +248,13 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
                       key={c.id}
                       type="button"
                       onClick={() => setCategory(c.id)}
-                      className={`p-3 rounded-xl text-left border transition flex items-start gap-3 cursor-pointer ${
+                      className={`p-3 rounded-xl text-left border transition flex items-start gap-2.5 cursor-pointer ${
                         isSelected
                           ? 'bg-purple-500/15 border-purple-500/50 text-white shadow-md'
                           : 'bg-dark-850 border-white/5 text-slate-400 hover:border-white/20'
                       }`}
                     >
-                      <div className={`p-2 rounded-lg ${isSelected ? 'bg-purple-500/20 text-purple-300' : 'bg-dark-800 text-slate-400'}`}>
+                      <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-purple-500/20 text-purple-300' : 'bg-dark-800 text-slate-400'}`}>
                         <Icon className="w-4 h-4" />
                       </div>
                       <div>
@@ -272,13 +272,13 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
           <div className="p-5 rounded-2xl bg-dark-900 border border-white/10 shadow-xl space-y-5">
             <div className="flex items-center gap-2 text-sm font-bold text-white border-b border-white/5 pb-2">
               <span className="w-6 h-6 rounded-full bg-purple-500/10 text-purple-400 text-xs flex items-center justify-center font-mono">2</span>
-              Coin Supply & Interest Rewards
+              Supply & Rewards
             </div>
 
-            {/* Supply Tier Slider */}
+            {/* Supply Slider */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-300">Total Coins in Existence:</span>
+                <span className="font-semibold text-slate-300">Max Supply:</span>
                 <span className="font-bold text-purple-400 font-mono">{SUPPLIES[supplyTier]?.label}</span>
               </div>
               <input
@@ -295,8 +295,8 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
             {/* Hype Level Slider */}
             <div className="space-y-2 pt-2 border-t border-white/5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-300">Popularity & Hype Level:</span>
-                <span className="font-bold text-brand-gold font-mono">Level {hypeLevel} of 5</span>
+                <span className="font-semibold text-slate-300">Hype Level:</span>
+                <span className="font-bold text-brand-gold font-mono">Level {hypeLevel} / 5</span>
               </div>
               <input
                 type="range"
@@ -309,11 +309,11 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
               />
             </div>
 
-            {/* Staking Yield APY Slider */}
+            {/* Staking Yield Slider */}
             <div className="space-y-2 pt-2 border-t border-white/5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-300">Annual Holding Reward (Interest %):</span>
-                <span className="font-bold text-brand-green font-mono">{stakingYield}% per year</span>
+                <span className="font-semibold text-slate-300">Staking Yield:</span>
+                <span className="font-bold text-brand-green font-mono">{stakingYield}% APY</span>
               </div>
               <input
                 type="range"
@@ -324,15 +324,12 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
                 onChange={(e) => setStakingYield(Number(e.target.value))}
                 className="w-full accent-brand-green cursor-pointer"
               />
-              <p className="text-[11px] text-slate-400">
-                Holders will earn bonus payouts directly to their balance over time.
-              </p>
             </div>
           </div>
 
         </div>
 
-        {/* Right Preview & Genesis Button (5 cols) */}
+        {/* Right Summary (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
           
           <div className="sticky top-24 p-6 rounded-2xl bg-gradient-to-b from-dark-900 to-dark-950 border border-purple-500/30 shadow-2xl space-y-5">
@@ -340,45 +337,42 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
-                <h3 className="text-base font-bold text-white">Calculated Coin Stats</h3>
+                <h3 className="text-base font-bold text-white">Token Summary</h3>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 font-mono font-bold">
-                Auto-Calculated
-              </span>
             </div>
 
-            {/* Initial Token Price */}
+            {/* Token Price */}
             <div className="p-4 rounded-xl bg-dark-850 border border-white/5 text-center font-mono space-y-1">
-              <span className="text-xs text-slate-400 block uppercase tracking-wider">Starting Price Per Coin</span>
+              <span className="text-xs text-slate-400 block uppercase tracking-wider">Starting Price</span>
               <div className="text-3xl font-black text-purple-400">
                 ${tokenomics.initialPrice} USD
               </div>
               <div className="text-xs text-slate-400">
-                In Your National Currency: <strong className="text-slate-200">{formatMoney(tokenomics.initialPrice)}</strong>
+                In Your Currency: <strong className="text-slate-200">{formatMoney(tokenomics.initialPrice)}</strong>
               </div>
             </div>
 
-            {/* Metrics Breakdown */}
+            {/* Metrics */}
             <div className="space-y-2.5 font-mono text-xs divide-y divide-white/5">
               <div className="flex items-center justify-between pt-1 text-slate-300">
-                <span>Total Coins Created:</span>
-                <span className="font-bold text-white">{tokenomics.supply.toLocaleString()} coins</span>
+                <span>Total Supply:</span>
+                <span className="font-bold text-white">{tokenomics.supply.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between pt-2 text-slate-300">
-                <span>Total Combined Coin Value:</span>
+                <span>Market Cap:</span>
                 <span className="font-bold text-brand-green">{formatMoney(tokenomics.marketCap)}</span>
               </div>
               <div className="flex items-center justify-between pt-2 text-slate-300">
-                <span>Your Free Founder Stash (10%):</span>
-                <span className="font-bold text-purple-400">{tokenomics.founderAllocation.toLocaleString()} {ticker || 'Coins'}</span>
+                <span>Your Stash (10%):</span>
+                <span className="font-bold text-purple-400">{tokenomics.founderAllocation.toLocaleString()} {ticker || 'Tokens'}</span>
               </div>
               <div className="flex items-center justify-between pt-2 text-slate-300">
-                <span>Value of Your Free Coins:</span>
+                <span>Your Stake Value:</span>
                 <span className="font-bold text-brand-green">{formatMoney(tokenomics.founderValue)}</span>
               </div>
               <div className="flex items-center justify-between pt-2 text-slate-300">
-                <span>Annual Interest Paid to Holders:</span>
-                <span className="font-bold text-brand-cyan">{stakingYield}% per year</span>
+                <span>Staking Yield:</span>
+                <span className="font-bold text-brand-cyan">{stakingYield}% APY</span>
               </div>
             </div>
 
@@ -394,11 +388,11 @@ export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
               className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-purple-500 via-indigo-500 to-brand-cyan hover:from-purple-400 hover:to-cyan-400 text-dark-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl shadow-purple-500/20 transition cursor-pointer disabled:opacity-50"
             >
               {loading ? (
-                'Creating Coin...'
+                'Launching...'
               ) : nation ? (
-                <>Launch {ticker || 'Coin'} to the Market <ArrowRight className="w-4 h-4" /></>
+                <>Launch {ticker || 'Token'} <ArrowRight className="w-4 h-4" /></>
               ) : (
-                'Sign In Nation to Launch Coin'
+                'Sign In to Launch'
               )}
             </button>
 

@@ -4,17 +4,16 @@ import { useMarket } from '../context/MarketContext';
 import TradingChart from './TradingChart';
 import { 
   TrendingUp, TrendingDown, ArrowUpRight, 
-  ArrowDownRight, Search, Activity, Zap, Info, HelpCircle
+  ArrowDownRight, Search, Activity, Zap
 } from 'lucide-react';
 
-// Memoized Asset List Item in Screener
 const AssetListItem = React.memo(function AssetListItem({ asset, isSelected, flash, onSelect, formatMoney }) {
   const isUp = (Number(asset.change_24h) || 0) >= 0;
 
   return (
     <button
       onClick={() => onSelect(asset.ticker)}
-      className={`w-full p-3 rounded-xl text-left border transition flex items-center justify-between cursor-pointer ${
+      className={`w-full p-2.5 rounded-xl text-left border transition flex items-center justify-between cursor-pointer ${
         isSelected
           ? 'bg-dark-800 border-brand-cyan/40 shadow-lg'
           : 'bg-dark-900/60 border-white/5 hover:border-white/15 hover:bg-dark-850'
@@ -23,7 +22,7 @@ const AssetListItem = React.memo(function AssetListItem({ asset, isSelected, fla
       }`}
     >
       <div className="flex items-center gap-2.5">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs font-mono ${
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono ${
           asset.type === 'crypto' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
           asset.type === 'commodity' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
           'bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20'
@@ -33,10 +32,10 @@ const AssetListItem = React.memo(function AssetListItem({ asset, isSelected, fla
         <div>
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-white text-xs font-mono">{asset.ticker}</span>
-            <span className="text-[10px] text-slate-400 font-sans truncate max-w-[90px]">{asset.name}</span>
+            <span className="text-[10px] text-slate-400 font-sans truncate max-w-[85px]">{asset.name}</span>
           </div>
-          <div className="text-[10px] text-slate-500 uppercase font-mono">
-            {asset.type === 'stock' ? 'Stock' : asset.type === 'commodity' ? 'Commodity' : 'Crypto'} • {asset.sector || 'Sovereign'}
+          <div className="text-[9px] text-slate-500 uppercase font-mono">
+            {asset.type}
           </div>
         </div>
       </div>
@@ -45,7 +44,7 @@ const AssetListItem = React.memo(function AssetListItem({ asset, isSelected, fla
         <div className="text-xs font-bold text-white">
           {formatMoney(asset.current_price_usd)}
         </div>
-        <div className={`text-[11px] font-semibold flex items-center justify-end gap-0.5 ${
+        <div className={`text-[10px] font-semibold flex items-center justify-end gap-0.5 ${
           isUp ? 'text-brand-green' : 'text-brand-red'
         }`}>
           {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
@@ -56,7 +55,6 @@ const AssetListItem = React.memo(function AssetListItem({ asset, isSelected, fla
   );
 });
 
-// Memoized Live Order Flow Row
 const LiveTradeRow = React.memo(function LiveTradeRow({ trade, formatMoney }) {
   const isBuy = trade.side === 'BUY';
   return (
@@ -65,10 +63,10 @@ const LiveTradeRow = React.memo(function LiveTradeRow({ trade, formatMoney }) {
         <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold ${
           isBuy ? 'bg-brand-green/20 text-brand-green' : 'bg-brand-red/20 text-brand-red'
         }`}>
-          {isBuy ? 'BOUGHT' : 'SOLD'}
+          {trade.side}
         </span>
         <span className="font-bold text-white">{trade.ticker}</span>
-        <span className="text-slate-400 text-[10px] truncate max-w-[80px]">{trade.trader}</span>
+        <span className="text-slate-400 text-[10px] truncate max-w-[70px]">{trade.trader}</span>
       </div>
       <div className="text-right">
         <span className="text-slate-200 font-bold">{trade.quantity.toLocaleString()}</span>
@@ -78,7 +76,6 @@ const LiveTradeRow = React.memo(function LiveTradeRow({ trade, formatMoney }) {
   );
 });
 
-// Isolated Order Execution Desk
 const OrderDesk = React.memo(function OrderDesk({
   asset,
   nation,
@@ -94,7 +91,6 @@ const OrderDesk = React.memo(function OrderDesk({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Fetch holding for active asset
   const fetchHolding = useCallback(async () => {
     const token = localStorage.getItem('ns_trading_token');
     if (!token || !asset) return;
@@ -170,10 +166,10 @@ const OrderDesk = React.memo(function OrderDesk({
     <div className="p-5 rounded-2xl bg-dark-900 border border-white/10 shadow-xl space-y-4">
       <div className="flex items-center justify-between border-b border-white/5 pb-3">
         <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <Zap className="w-4 h-4 text-brand-cyan" /> Quick Buy & Sell
+          <Zap className="w-4 h-4 text-brand-cyan" /> Order
         </h3>
         <span className="text-[10px] px-2 py-0.5 rounded bg-brand-cyan/10 text-brand-cyan font-mono font-bold">
-          Instant Trade
+          Market
         </span>
       </div>
 
@@ -186,7 +182,7 @@ const OrderDesk = React.memo(function OrderDesk({
             side === 'BUY' ? 'bg-brand-green text-dark-950 shadow-md' : 'text-slate-400 hover:text-white'
           }`}
         >
-          BUY {asset.ticker}
+          BUY
         </button>
         <button
           type="button"
@@ -195,20 +191,20 @@ const OrderDesk = React.memo(function OrderDesk({
             side === 'SELL' ? 'bg-brand-red text-white shadow-md' : 'text-slate-400 hover:text-white'
           }`}
         >
-          SELL {asset.ticker}
+          SELL
         </button>
       </div>
 
       <form onSubmit={handleOrder} className="space-y-4">
-        {/* Quantity Input */}
+        {/* Quantity */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>How many shares / units?</span>
+            <span>Quantity</span>
             <span className="font-mono text-[11px]">
               {side === 'BUY' ? (
-                <>You can afford: <strong className="text-brand-green">{maxBuyShares.toLocaleString()}</strong></>
+                <>Max: <strong className="text-brand-green">{maxBuyShares.toLocaleString()}</strong></>
               ) : (
-                <>You own: <strong className="text-amber-400">{maxSellShares.toLocaleString()}</strong></>
+                <>Owned: <strong className="text-amber-400">{maxSellShares.toLocaleString()}</strong></>
               )}
             </span>
           </div>
@@ -232,7 +228,7 @@ const OrderDesk = React.memo(function OrderDesk({
           </div>
         </div>
 
-        {/* Quick Quantity Buttons */}
+        {/* Quantity Buttons */}
         <div className="grid grid-cols-4 gap-1.5 font-mono text-xs">
           {[10, 50, 100, 500].map((q) => (
             <button
@@ -246,20 +242,20 @@ const OrderDesk = React.memo(function OrderDesk({
           ))}
         </div>
 
-        {/* Order Cost Breakdown */}
+        {/* Cost */}
         <div className="p-3.5 rounded-xl bg-dark-950/60 border border-white/5 font-mono text-xs space-y-2">
           <div className="flex items-center justify-between text-slate-400">
-            <span>Price Per Unit:</span>
+            <span>Price:</span>
             <span className="text-white font-bold">{formatMoney(priceUsd)}</span>
           </div>
           <div className="flex items-center justify-between text-slate-400">
-            <span>Total {side === 'BUY' ? 'Cost' : 'Payout'}:</span>
+            <span>Total:</span>
             <span className={`text-base font-extrabold ${side === 'BUY' ? 'text-brand-green' : 'text-brand-red'}`}>
               {formatMoney(totalUsd)}
             </span>
           </div>
           <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-white/5">
-            <span>In US Dollars:</span>
+            <span>USD:</span>
             <span className="text-slate-400">{formatRawUSD(totalUsd)}</span>
           </div>
         </div>
@@ -286,11 +282,11 @@ const OrderDesk = React.memo(function OrderDesk({
           }`}
         >
           {loading ? (
-            'Processing Trade...'
+            'Processing...'
           ) : nation ? (
             `${side} ${numQty.toLocaleString()} ${asset.ticker}`
           ) : (
-            'Sign In Nation to Trade'
+            'Sign In to Trade'
           )}
         </button>
       </form>
@@ -302,7 +298,6 @@ export default React.memo(function TradingTerminal() {
   const { nation, formatMoney, formatRawUSD, refreshProfile, setAuthModalOpen } = useAuth();
   const { assets, selectedTicker, setSelectedTicker, selectedAsset, recentTrades, priceFlashMap } = useMarket();
 
-  // Search & Filter state with deferred value to prevent INP typing lag
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const deferredSearch = useDeferredValue(searchQuery);
@@ -332,34 +327,34 @@ export default React.memo(function TradingTerminal() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       
-      {/* 3-Column Financial Terminal Layout */}
+      {/* 3-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* Left Column: Asset Screener (3 cols) */}
+        {/* Left: Screener (3 cols) */}
         <div className="lg:col-span-3 space-y-3">
           
           <div className="p-4 rounded-2xl bg-dark-900 border border-white/10 shadow-xl space-y-3">
             
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-extrabold text-white uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                <Activity className="w-4 h-4 text-brand-cyan" /> Browse Markets
+                <Activity className="w-4 h-4 text-brand-cyan" /> Markets
               </h2>
-              <span className="text-[10px] font-mono text-slate-400">{filteredAssets.length} Total</span>
+              <span className="text-[10px] font-mono text-slate-400">{filteredAssets.length}</span>
             </div>
 
-            {/* Instant Search Bar */}
+            {/* Search */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search by name or ticker..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 rounded-xl bg-dark-850 border border-white/5 text-xs text-white focus:outline-none focus:border-brand-cyan"
               />
             </div>
 
-            {/* Category Filter Chips */}
+            {/* Filter Tabs */}
             <div className="flex gap-1 overflow-x-auto pb-1 text-[10px] font-mono">
               {[
                 { id: 'ALL', label: 'All' },
@@ -379,7 +374,7 @@ export default React.memo(function TradingTerminal() {
               ))}
             </div>
 
-            {/* Virtualized/Scrollable Screener Asset List */}
+            {/* List */}
             <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
               {filteredAssets.map((asset) => (
                 <AssetListItem
@@ -397,10 +392,10 @@ export default React.memo(function TradingTerminal() {
 
         </div>
 
-        {/* Middle Column: Interactive Chart & Telemetry (6 cols) */}
+        {/* Middle: Chart & Stats (6 cols) */}
         <div className="lg:col-span-6 space-y-4">
           
-          {/* Asset Hero Banner */}
+          {/* Hero Banner */}
           {selectedAsset && (
             <div className="p-5 rounded-2xl bg-dark-900 border border-white/10 shadow-xl flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -411,16 +406,16 @@ export default React.memo(function TradingTerminal() {
                   <div className="flex items-center gap-2">
                     <h1 className="text-lg font-extrabold text-white">{selectedAsset.name}</h1>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-dark-800 text-slate-300 font-mono uppercase">
-                      {selectedAsset.type === 'stock' ? 'Company Stock' : selectedAsset.type === 'commodity' ? 'Raw Commodity' : 'Cryptocurrency'}
+                      {selectedAsset.type}
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 font-mono">
-                    Sector: <span className="text-slate-300">{selectedAsset.sector || 'Sovereign Asset'}</span> • Health Rating: <span className="text-brand-green">{selectedAsset.health_score || 85}/100</span>
+                    Sector: <span className="text-slate-300">{selectedAsset.sector || 'Sovereign'}</span> • Health: <span className="text-brand-green">{selectedAsset.health_score || 85}/100</span>
                   </p>
                 </div>
               </div>
 
-              {/* Price & 24h Change */}
+              {/* Price */}
               <div className="text-right font-mono">
                 <div className="text-2xl font-black text-white">
                   {formatMoney(selectedAsset.current_price_usd)}
@@ -429,45 +424,44 @@ export default React.memo(function TradingTerminal() {
                   isUp ? 'text-brand-green' : 'text-brand-red'
                 }`}>
                   {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  {isUp ? '+' : ''}{(Number(selectedAsset.change_24h) || 0).toFixed(2)}% (Today)
+                  {isUp ? '+' : ''}{(Number(selectedAsset.change_24h) || 0).toFixed(2)}%
                 </div>
               </div>
             </div>
           )}
 
-          {/* Interactive Chart Component */}
+          {/* Chart */}
           <div className="min-h-[400px]">
             <TradingChart asset={selectedAsset} />
           </div>
 
-          {/* Asset Telemetry Stats Grid */}
+          {/* Stats */}
           {selectedAsset && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-dark-900 border border-white/10 font-mono text-xs">
               <div className="p-3 rounded-xl bg-dark-950/60">
-                <span className="text-slate-500 block text-[10px] uppercase">Total Worth</span>
+                <span className="text-slate-500 block text-[10px] uppercase">Market Cap</span>
                 <span className="text-sm font-bold text-white">{formatMoney(selectedAsset.market_cap_usd, { compact: true })}</span>
               </div>
               <div className="p-3 rounded-xl bg-dark-950/60">
-                <span className="text-slate-500 block text-[10px] uppercase">Today's Highest</span>
+                <span className="text-slate-500 block text-[10px] uppercase">24h High</span>
                 <span className="text-sm font-bold text-brand-green">{formatMoney(selectedAsset.high_24h_usd)}</span>
               </div>
               <div className="p-3 rounded-xl bg-dark-950/60">
-                <span className="text-slate-500 block text-[10px] uppercase">Today's Lowest</span>
+                <span className="text-slate-500 block text-[10px] uppercase">24h Low</span>
                 <span className="text-sm font-bold text-brand-red">{formatMoney(selectedAsset.low_24h_usd)}</span>
               </div>
               <div className="p-3 rounded-xl bg-dark-950/60">
-                <span className="text-slate-500 block text-[10px] uppercase">Total Traded Today</span>
-                <span className="text-sm font-bold text-brand-cyan">{Number(selectedAsset.volume_24h || 0).toLocaleString()} units</span>
+                <span className="text-slate-500 block text-[10px] uppercase">24h Volume</span>
+                <span className="text-sm font-bold text-brand-cyan">{Number(selectedAsset.volume_24h || 0).toLocaleString()}</span>
               </div>
             </div>
           )}
 
         </div>
 
-        {/* Right Column: Order Entry & Live Trade Feed (3 cols) */}
+        {/* Right: Order Desk & Recent Trades (3 cols) */}
         <div className="lg:col-span-3 space-y-4">
           
-          {/* Isolated Order Desk */}
           <OrderDesk
             asset={selectedAsset}
             nation={nation}
@@ -477,11 +471,11 @@ export default React.memo(function TradingTerminal() {
             onRequireAuth={handleRequireAuth}
           />
 
-          {/* Live Executed Orders Flow */}
+          {/* Recent Trades */}
           <div className="p-4 rounded-2xl bg-dark-900 border border-white/10 shadow-xl space-y-3">
             <div className="flex items-center justify-between border-b border-white/5 pb-2">
               <h3 className="text-xs font-extrabold text-white uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                <Activity className="w-3.5 h-3.5 text-brand-green" /> Recent Trades Feed
+                <Activity className="w-3.5 h-3.5 text-brand-green" /> Recent Trades
               </h3>
               <span className="text-[10px] font-mono text-brand-green flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-ping" /> Live
