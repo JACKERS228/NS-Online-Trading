@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #07090e;
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbars for trading terminal look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0e14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Glassmorphism panel styles */
+.terminal-panel {
+  background: rgba(16, 21, 32, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.terminal-panel-interactive {
+  background: rgba(20, 28, 43, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s ease-in-out;
+}
+
+.terminal-panel-interactive:hover {
+  border-color: rgba(0, 216, 255, 0.3);
+  box-shadow: 0 0 20px rgba(0, 216, 255, 0.08);
+}
+
+/* Glowing text and borders */
+.glow-green {
+  text-shadow: 0 0 10px rgba(0, 245, 155, 0.5);
+}
+
+.glow-red {
+  text-shadow: 0 0 10px rgba(255, 59, 105, 0.5);
+}
+
+.glow-cyan {
+  text-shadow: 0 0 10px rgba(0, 216, 255, 0.5);
+}
+
+.border-glow-green {
+  box-shadow: 0 0 12px rgba(0, 245, 155, 0.25);
+  border-color: rgba(0, 245, 155, 0.6);
+}
+
+.border-glow-red {
+  box-shadow: 0 0 12px rgba(255, 59, 105, 0.25);
+  border-color: rgba(255, 59, 105, 0.6);
+}
+
+/* Flashing animations for price updates */
+@keyframes flashGreen {
+  0% { background-color: rgba(0, 245, 155, 0.35); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flashRed {
+  0% { background-color: rgba(255, 59, 105, 0.35); }
+  100% { background-color: transparent; }
+}
+
+.flash-up {
+  animation: flashGreen 1.2s ease-out;
+}
+
+.flash-down {
+  animation: flashRed 1.2s ease-out;
+}
