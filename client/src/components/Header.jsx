@@ -4,7 +4,7 @@ import { useMarket } from '../context/MarketContext';
 import { 
   TrendingUp, Building2, Coins, Package, Briefcase, 
   Globe2, Newspaper, LogIn, LogOut, RotateCcw, 
-  ChevronDown, DollarSign, Activity, Radio
+  ChevronDown, DollarSign, Activity, Radio, Gavel
 } from 'lucide-react';
 import CurrencySettingsModal from './CurrencySettingsModal';
 
@@ -65,6 +65,7 @@ export default React.memo(function Header({ activeTab, setActiveTab }) {
     { id: 'wizard', label: 'Companies', icon: Building2 },
     { id: 'crypto', label: 'Crypto', icon: Coins },
     { id: 'commodities', label: 'Commodities', icon: Package },
+    { id: 'auctions', label: 'Auctions', icon: Gavel },
     { id: 'portfolio', label: 'Portfolio', icon: Briefcase },
     { id: 'forex', label: 'Nations', icon: Globe2 },
     { id: 'news', label: 'News', icon: Newspaper },

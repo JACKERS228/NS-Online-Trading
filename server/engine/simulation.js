@@ -165,6 +165,9 @@ class MarketSimulationEngine {
       await db.batch(batchStatements);
     }
 
+    // Process auction lifecycle finalizations
+    await this.processAuctionLifecycles(now);
+
     this.recentTrades = [...newTrades.slice(0, 5), ...this.recentTrades].slice(0, 30);
 
     this.broadcast({
@@ -179,6 +182,89 @@ class MarketSimulationEngine {
         ticker: triggeredEvent.ticker
       } : null
     });
+  }
+
+  async processAuctionLifecycles(now) {
+    try {
+      const expiredAuctions = await db.all(`
+        SELECT * FROM auctions
+        WHERE status = 'ACTIVE' AND expires_at <= ?
+      `, [now]);
+
+      if (!expiredAuctions || expiredAuctions.length === 0) return;
+
+      const batchStatements = [];
+
+      for (const auc of expiredAuctions) {
+        if (auc.highest_bidder_nation_id) {
+          // Sold to highest bidder
+          const finalPrice = auc.current_bid_usd;
+          const winnerId = auc.highest_bidder_nation_id;
+          const winnerName = auc.highest_bidder_nation_name;
+
+          // 1. Credit final bid to seller
+          batchStatements.push({
+            sql: 'UPDATE nations SET cash_balance_usd = cash_balance_usd + ? WHERE id = ?',
+            args: [finalPrice, auc.seller_nation_id]
+          });
+
+          // 2. Mark auction SOLD
+          batchStatements.push({
+            sql: "UPDATE auctions SET status = 'SOLD' WHERE id = ?",
+            args: [auc.id]
+          });
+
+          // 3. Transfer/Create Collectible in Winner Vault
+          if (auc.collectible_id) {
+            batchStatements.push({
+              sql: `UPDATE collectibles SET 
+                      owner_nation_id = ?, 
+                      acquisition_price_usd = ?, 
+                      estimated_value_usd = ?, 
+                      is_listed_for_auction = 0, 
+                      acquired_at = ? 
+                    WHERE id = ?`,
+              args: [winnerId, finalPrice, finalPrice, now, auc.collectible_id]
+            });
+          } else {
+            const newColId = `col_${uuidv4().slice(0, 8)}`;
+            batchStatements.push({
+              sql: `INSERT INTO collectibles (
+                      id, owner_nation_id, original_creator_nation_id, original_creator_nation_name,
+                      title, category, description, image_url, acquisition_price_usd,
+                      estimated_value_usd, is_listed_for_auction, acquired_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+              args: [
+                newColId, winnerId, auc.seller_nation_id, auc.seller_nation_name,
+                auc.title, auc.category, auc.description, auc.image_url,
+                finalPrice, finalPrice, now
+              ]
+            });
+          }
+          console.log(`[Auction] Auction '${auc.title}' concluded! Sold to ${winnerName} for $${finalPrice.toLocaleString()} USD.`);
+        } else {
+          // Expired with no bids
+          batchStatements.push({
+            sql: "UPDATE auctions SET status = 'EXPIRED' WHERE id = ?",
+            args: [auc.id]
+          });
+
+          if (auc.collectible_id) {
+            batchStatements.push({
+              sql: 'UPDATE collectibles SET is_listed_for_auction = 0 WHERE id = ?',
+              args: [auc.collectible_id]
+            });
+          }
+          console.log(`[Auction] Auction '${auc.title}' expired with no bids.`);
+        }
+      }
+
+      if (batchStatements.length > 0) {
+        await db.batch(batchStatements);
+      }
+    } catch (err) {
+      console.error('[Auction Engine] Error processing auction lifecycle:', err);
+    }
   }
 
   async generateRandomMarketEvent(assets, timestamp) {

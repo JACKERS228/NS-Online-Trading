@@ -9,6 +9,7 @@ import CommoditiesMarket from './components/CommoditiesMarket';
 import PortfolioView from './components/PortfolioView';
 import ForexAndNations from './components/ForexAndNations';
 import NewsFeed from './components/NewsFeed';
+import AuctionHouse from './components/AuctionHouse';
 import AuthModal from './components/AuthModal';
 
 function MainApp() {
@@ -27,6 +28,7 @@ function MainApp() {
         {activeTab === 'wizard' && <CompanyWizard onCompanyCreated={() => setActiveTab('terminal')} />}
         {activeTab === 'crypto' && <CryptoLaunchpad onTokenCreated={() => setActiveTab('terminal')} />}
         {activeTab === 'commodities' && <CommoditiesMarket onSelectCommodity={() => setActiveTab('terminal')} />}
+        {activeTab === 'auctions' && <AuctionHouse />}
         {activeTab === 'portfolio' && <PortfolioView onSelectAsset={() => setActiveTab('terminal')} />}
         {activeTab === 'forex' && <ForexAndNations />}
         {activeTab === 'news' && <NewsFeed onSelectAsset={() => setActiveTab('terminal')} />}

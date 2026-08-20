@@ -142,6 +142,49 @@ class SecureDatabaseManager {
         category TEXT NOT NULL,
         impact_factor REAL NOT NULL DEFAULT 0,
         timestamp INTEGER NOT NULL
+      );`,
+
+      `CREATE TABLE IF NOT EXISTS auctions (
+        id TEXT PRIMARY KEY,
+        seller_nation_id TEXT NOT NULL,
+        seller_nation_name TEXT NOT NULL,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        description TEXT,
+        image_url TEXT,
+        starting_bid_usd REAL NOT NULL,
+        current_bid_usd REAL NOT NULL,
+        highest_bidder_nation_id TEXT,
+        highest_bidder_nation_name TEXT,
+        buyout_price_usd REAL,
+        collectible_id TEXT,
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      );`,
+
+      `CREATE TABLE IF NOT EXISTS collectibles (
+        id TEXT PRIMARY KEY,
+        owner_nation_id TEXT NOT NULL,
+        original_creator_nation_id TEXT,
+        original_creator_nation_name TEXT,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        description TEXT,
+        image_url TEXT,
+        acquisition_price_usd REAL NOT NULL,
+        estimated_value_usd REAL NOT NULL,
+        is_listed_for_auction INTEGER NOT NULL DEFAULT 0,
+        acquired_at INTEGER NOT NULL
+      );`,
+
+      `CREATE TABLE IF NOT EXISTS auction_bids (
+        id TEXT PRIMARY KEY,
+        auction_id TEXT NOT NULL,
+        bidder_nation_id TEXT NOT NULL,
+        bidder_nation_name TEXT NOT NULL,
+        amount_usd REAL NOT NULL,
+        timestamp INTEGER NOT NULL
       );`
     ], 'write');
   }

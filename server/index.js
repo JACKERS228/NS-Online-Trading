@@ -12,6 +12,7 @@ const { router: authRouter } = require('./routes/auth');
 const marketRouter = require('./routes/market');
 const tradeRouter = require('./routes/trade');
 const wizardRouter = require('./routes/wizard');
+const auctionRouter = require('./routes/auction');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -29,6 +30,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/market', marketRouter);
 app.use('/api/trade', tradeRouter);
 app.use('/api/wizard', wizardRouter);
+app.use('/api/auction', auctionRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
