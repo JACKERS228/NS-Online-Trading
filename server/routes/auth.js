@@ -75,7 +75,8 @@ router.post('/register-or-login', async (req, res) => {
       const newNationId = uuidv4();
       const currName = (currencyName && currencyName.trim()) ? currencyName.trim() : 'Credits';
       const currSymbol = (currencySymbol && currencySymbol.trim()) ? currencySymbol.trim() : '¤';
-      const exchangeRate = (usdExchangeRate && !isNaN(usdExchangeRate) && usdExchangeRate > 0) ? Number(usdExchangeRate) : 1.0;
+      const rawRate = (usdExchangeRate && !isNaN(usdExchangeRate) && usdExchangeRate > 0) ? Number(usdExchangeRate) : 1.0;
+      const exchangeRate = +rawRate.toFixed(2);
       const initialCapital = 100000.0;
       const now = Date.now();
 
@@ -158,10 +159,11 @@ router.post('/update-currency', authenticateNation, async (req, res) => {
     if (!currencySymbol || !currencySymbol.trim()) {
       return res.status(400).json({ error: 'Currency symbol is required' });
     }
-    const rate = Number(usdExchangeRate);
-    if (isNaN(rate) || rate <= 0) {
+    const rawRate = Number(usdExchangeRate);
+    if (isNaN(rawRate) || rawRate <= 0) {
       return res.status(400).json({ error: 'Exchange rate must be a positive number' });
     }
+    const rate = +rawRate.toFixed(2);
 
     await db.run(`
       UPDATE nations SET

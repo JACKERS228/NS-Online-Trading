@@ -11,7 +11,7 @@ function getFormatter(key, options) {
 }
 
 /**
- * Fast currency & number formatting with LRU-style formatter caching
+ * Fast currency & number formatting with symbol prefix (e.g. $100.00, §250.00)
  */
 export function formatCurrencyValue(amount, {
   rate = 1.0,
@@ -19,6 +19,8 @@ export function formatCurrencyValue(amount, {
   currencyName = '',
   forceUSD = false,
   showSymbol = true,
+  includeCurrencyName = false,
+  includeCode = false,
   maximumFractionDigits = 2,
   compact = false
 } = {}) {
@@ -36,7 +38,9 @@ export function formatCurrencyValue(amount, {
     });
 
     const formatted = formatter.format(num);
-    return showSymbol ? `$${formatted} USD` : `$${formatted}`;
+    const prefix = showSymbol ? '$' : '';
+    const suffix = includeCode ? ' USD' : '';
+    return `${prefix}${formatted}${suffix}`.trim();
   }
 
   const convertedVal = num * rate;
@@ -52,7 +56,7 @@ export function formatCurrencyValue(amount, {
 
   const formatted = formatter.format(convertedVal);
   const prefix = showSymbol ? (symbol || '¤') : '';
-  const suffix = showSymbol && currencyName ? ` ${currencyName}` : '';
+  const suffix = includeCurrencyName && currencyName ? ` ${currencyName}` : '';
 
   return `${prefix}${formatted}${suffix}`.trim();
 }

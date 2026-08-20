@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Coins, X, Check, RefreshCw } from 'lucide-react';
 
 export default function CurrencySettingsModal({ isOpen, onClose }) {
-  const { nation, updateCurrencySettings, formatMoney } = useAuth();
+  const { nation, updateCurrencySettings } = useAuth();
   const [currencyName, setCurrencyName] = useState('');
   const [currencySymbol, setCurrencySymbol] = useState('');
   const [usdExchangeRate, setUsdExchangeRate] = useState('');
@@ -15,28 +15,41 @@ export default function CurrencySettingsModal({ isOpen, onClose }) {
     if (nation) {
       setCurrencyName(nation.currency_name || 'Credits');
       setCurrencySymbol(nation.currency_symbol || '¤');
-      setUsdExchangeRate(nation.usd_exchange_rate ? String(nation.usd_exchange_rate) : '1.0');
+      setUsdExchangeRate(nation.usd_exchange_rate ? Number(nation.usd_exchange_rate).toFixed(2) : '1.00');
     }
   }, [nation]);
 
   if (!isOpen || !nation) return null;
+
+  const handleRateChange = (e) => {
+    let val = e.target.value;
+    if (val.includes('.')) {
+      const [whole, decimals] = val.split('.');
+      if (decimals.length > 2) {
+        val = `${whole}.${decimals.slice(0, 2)}`;
+      }
+    }
+    setUsdExchangeRate(val);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
+    const parsedRate = Math.max(0.01, +(Number(usdExchangeRate) || 1.0).toFixed(2));
+
     try {
       await updateCurrencySettings({
-        currencyName,
-        currencySymbol,
-        usdExchangeRate
+        currencyName: currencyName.trim(),
+        currencySymbol: currencySymbol.trim(),
+        usdExchangeRate: parsedRate
       });
       setSaved(true);
       setTimeout(() => {
         setSaved(false);
         onClose();
-      }, 1200);
+      }, 1000);
     } catch (err) {
       setError(err.message || 'Failed to update currency settings');
     } finally {
@@ -45,7 +58,7 @@ export default function CurrencySettingsModal({ isOpen, onClose }) {
   };
 
   const sampleUSD = 1000;
-  const convertedSample = (sampleUSD * (Number(usdExchangeRate) || 1)).toLocaleString();
+  const convertedSample = (sampleUSD * (Number(usdExchangeRate) || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
@@ -57,11 +70,11 @@ export default function CurrencySettingsModal({ isOpen, onClose }) {
                 <Coins className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">National Currency Settings</h3>
-                <p className="text-xs text-slate-400">Configure your sovereign currency and USD peg</p>
+                <h3 className="text-lg font-bold text-white">Currency Settings</h3>
+                <p className="text-xs text-slate-400">Configure currency name and USD exchange rate</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-dark-800">
+            <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-dark-800 cursor-pointer">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -99,26 +112,26 @@ export default function CurrencySettingsModal({ isOpen, onClose }) {
 
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">
-                Exchange Rate to USD (1 USD = X {currencyName})
+                USD Exchange Rate (1 USD = X {currencyName}) — <span className="text-slate-500">Max 2 Decimals</span>
               </label>
               <input
                 type="number"
-                step="0.0001"
-                min="0.0001"
+                step="0.01"
+                min="0.01"
                 required
                 value={usdExchangeRate}
-                onChange={(e) => setUsdExchangeRate(e.target.value)}
-                placeholder="e.g. 2.50"
+                onChange={handleRateChange}
+                placeholder="e.g. 1.02"
                 className="w-full px-3.5 py-2 rounded-xl bg-dark-850 border border-white/10 text-sm text-white font-mono focus:outline-none focus:border-brand-cyan"
               />
             </div>
 
-            <div className="p-3.5 rounded-xl bg-dark-800/80 border border-white/5 space-y-1.5 text-xs">
-              <div className="text-slate-400 font-medium">Live Conversion Preview:</div>
+            <div className="p-3.5 rounded-xl bg-dark-800/80 border border-white/5 space-y-1 text-xs">
+              <div className="text-slate-400 font-medium text-[11px]">Preview:</div>
               <div className="flex items-center justify-between text-slate-200">
-                <span>$1,000 USD benchmark =</span>
-                <span className="font-bold text-brand-green font-mono">
-                  {currencySymbol}{convertedSample} {currencyName}
+                <span>$1,000 USD =</span>
+                <span className="font-bold text-brand-green font-mono text-sm">
+                  {currencySymbol}{convertedSample}
                 </span>
               </div>
             </div>
@@ -127,14 +140,14 @@ export default function CurrencySettingsModal({ isOpen, onClose }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 py-2.5 rounded-xl bg-dark-800 hover:bg-dark-750 text-slate-300 text-xs font-semibold transition"
+                className="flex-1 py-2.5 rounded-xl bg-dark-800 hover:bg-dark-750 text-slate-300 text-xs font-semibold transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading || saved}
-                className="flex-1 py-2.5 rounded-xl bg-brand-cyan hover:bg-cyan-400 text-dark-950 text-xs font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-xl bg-brand-cyan hover:bg-cyan-400 text-dark-950 text-xs font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
               >
                 {saved ? <><Check className="w-4 h-4" /> Saved!</> : (loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Save Settings')}
               </button>
