@@ -40,12 +40,14 @@ const HistoryRow = React.memo(function HistoryRow({ order, formatMoney }) {
   return (
     <tr className="hover:bg-dark-850/50">
       <td className="p-3.5 text-slate-500">{dateStr}</td>
-      <td className={`p-3.5 font-bold ${isBuy ? 'text-brand-green' : 'text-brand-red'}`}>{order.side}</td>
+      <td className={`p-3.5 font-bold ${isBuy ? 'text-brand-green' : 'text-brand-red'}`}>
+        {isBuy ? 'BOUGHT' : 'SOLD'}
+      </td>
       <td className="p-3.5 font-bold text-white">{order.ticker}</td>
       <td className="p-3.5 text-slate-300">{Number(order.quantity).toLocaleString()}</td>
       <td className="p-3.5 text-slate-300">{formatMoney(order.execution_price_usd)}</td>
       <td className="p-3.5 text-slate-200 font-bold">{formatMoney(order.total_usd)}</td>
-      <td className="p-3.5 text-brand-green font-semibold">{order.status}</td>
+      <td className="p-3.5 text-brand-green font-semibold">Completed</td>
     </tr>
   );
 });
@@ -106,15 +108,15 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
         <div className="w-16 h-16 rounded-3xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mx-auto border border-brand-cyan/20">
           <Briefcase className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-white">Sign In to View Portfolio</h2>
+        <h2 className="text-xl font-bold text-white">Sign In to View Your Portfolio</h2>
         <p className="text-sm text-slate-400 max-w-md mx-auto">
-          Sign in or register your sovereign nation profile to track your holdings, profit/loss metrics, and dividend earnings.
+          Sign in or register your nation to track the stocks you own, your total profits, and dividend payouts.
         </p>
         <button
           onClick={() => setAuthModalOpen(true)}
           className="py-2.5 px-6 rounded-xl bg-brand-green hover:bg-brand-green-dim text-dark-950 font-bold text-sm transition cursor-pointer shadow-lg shadow-brand-green/20"
         >
-          Sign In Nation Profile
+          Sign In Nation
         </button>
       </div>
     );
@@ -135,9 +137,9 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
               <Briefcase className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">{nation.name} Sovereign Portfolio</h1>
+              <h1 className="text-xl font-bold text-white">{nation.name} Portfolio</h1>
               <p className="text-xs text-slate-400">
-                Active Currency: <strong className="text-brand-cyan">{nation.currency_name} ({nation.currency_symbol})</strong> • 1 USD = {nation.usd_exchange_rate}
+                National Currency: <strong className="text-brand-cyan">{nation.currency_name} ({nation.currency_symbol})</strong> • 1 USD = {nation.usd_exchange_rate}
               </p>
             </div>
           </div>
@@ -146,7 +148,7 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
             onClick={() => setResetModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-750 text-amber-400 text-xs font-semibold border border-white/5 transition cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" /> Reset Sandbox ($100k)
+            <RotateCcw className="w-3.5 h-3.5" /> Reset Starting Cash ($100k)
           </button>
         </div>
 
@@ -154,44 +156,44 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
           
           <div className="p-4 rounded-xl bg-dark-950/70 border border-white/5 space-y-1">
-            <span className="text-[11px] text-slate-400 block uppercase">Total Net Worth</span>
+            <span className="text-[11px] text-slate-400 block uppercase">Total Wealth (Net Worth)</span>
             <div className="text-2xl font-black text-white">
               {formatMoney(portfolioData?.net_worth_usd || nation.cash_balance_usd)}
             </div>
             <div className="text-[11px] text-slate-500">
-              USD: {formatRawUSD(portfolioData?.net_worth_usd || nation.cash_balance_usd)}
+              Cash + Value of all Investments
             </div>
           </div>
 
           <div className="p-4 rounded-xl bg-dark-950/70 border border-white/5 space-y-1">
-            <span className="text-[11px] text-slate-400 block uppercase">Cash Capital</span>
+            <span className="text-[11px] text-slate-400 block uppercase">Available Cash</span>
             <div className="text-2xl font-black text-brand-green">
               {formatMoney(nation.cash_balance_usd)}
             </div>
             <div className="text-[11px] text-slate-500">
-              Available to deploy
+              Money ready to buy new shares
             </div>
           </div>
 
           <div className="p-4 rounded-xl bg-dark-950/70 border border-white/5 space-y-1">
-            <span className="text-[11px] text-slate-400 block uppercase">Active Holdings Value</span>
+            <span className="text-[11px] text-slate-400 block uppercase">Value of Investments</span>
             <div className="text-2xl font-black text-brand-cyan">
               {formatMoney(portfolioData?.portfolio_value_usd || 0)}
             </div>
             <div className="text-[11px] text-slate-500">
-              {holdings.length} Position(s)
+              {holdings.length} Active Position(s)
             </div>
           </div>
 
           <div className="p-4 rounded-xl bg-dark-950/70 border border-white/5 space-y-1">
-            <span className="text-[11px] text-slate-400 block uppercase">Total All-Time P&L</span>
+            <span className="text-[11px] text-slate-400 block uppercase">Total Profit / Loss</span>
             <div className={`text-2xl font-black flex items-center gap-1 ${
               isAllTimePos ? 'text-brand-green' : 'text-brand-red'
             }`}>
               {isAllTimePos ? '+' : ''}{formatMoney(portfolioData?.total_all_time_pnl_usd || 0)}
             </div>
             <div className={`text-[11px] font-bold ${isAllTimePos ? 'text-brand-green' : 'text-brand-red'}`}>
-              {isAllTimePos ? '+' : ''}{portfolioData?.total_all_time_pnl_percent || 0}% Return
+              {isAllTimePos ? '+' : ''}{portfolioData?.total_all_time_pnl_percent || 0}% overall return
             </div>
           </div>
 
@@ -209,7 +211,7 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          Open Asset Positions ({holdings.length})
+          What You Own ({holdings.length} Assets)
         </button>
         <button
           onClick={() => setActiveSubTab('history')}
@@ -219,7 +221,7 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          Order Execution History ({tradeHistory.length})
+          Past Trades History ({tradeHistory.length})
         </button>
       </div>
 
@@ -229,7 +231,7 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
           {holdings.length === 0 ? (
             <div className="p-12 text-center text-slate-500 space-y-3">
               <Layers className="w-10 h-10 mx-auto text-slate-600" />
-              <p className="text-sm">No open positions yet. Visit the Trading Desk or Company Wizard to begin trading!</p>
+              <p className="text-sm">You don't own any stocks or crypto yet. Visit the Trading Desk or Create a Company to begin!</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -237,11 +239,11 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
                 <thead>
                   <tr className="border-b border-white/10 bg-dark-950/60 text-slate-400 text-[11px]">
                     <th className="p-3.5">Asset</th>
-                    <th className="p-3.5">Quantity</th>
-                    <th className="p-3.5">Avg Buy Price</th>
+                    <th className="p-3.5">Quantity Owned</th>
+                    <th className="p-3.5">Your Avg Buy Price</th>
                     <th className="p-3.5">Current Price</th>
-                    <th className="p-3.5">Market Value</th>
-                    <th className="p-3.5">Unrealized P&L</th>
+                    <th className="p-3.5">Total Value</th>
+                    <th className="p-3.5">Profit / Loss</th>
                     <th className="p-3.5 text-right">Action</th>
                   </tr>
                 </thead>
@@ -267,7 +269,7 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
           {tradeHistory.length === 0 ? (
             <div className="p-12 text-center text-slate-500">
               <History className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-              <p className="text-sm">No transaction history recorded yet.</p>
+              <p className="text-sm">No past trades recorded yet.</p>
             </div>
           ) : (
             <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
@@ -275,10 +277,10 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
                 <thead>
                   <tr className="border-b border-white/10 bg-dark-950/60 text-slate-400 text-[11px]">
                     <th className="p-3.5">Time</th>
-                    <th className="p-3.5">Side</th>
+                    <th className="p-3.5">Action</th>
                     <th className="p-3.5">Asset</th>
                     <th className="p-3.5">Quantity</th>
-                    <th className="p-3.5">Execution Price</th>
+                    <th className="p-3.5">Price Executed</th>
                     <th className="p-3.5">Total Value</th>
                     <th className="p-3.5">Status</th>
                   </tr>
@@ -305,9 +307,9 @@ export default React.memo(function PortfolioView({ onSelectAsset }) {
             <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto">
               <ShieldAlert className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-bold text-white">Reset Sandbox Capital?</h3>
+            <h3 className="text-base font-bold text-white">Reset Starting Cash?</h3>
             <p className="text-xs text-slate-300 leading-relaxed">
-              This will reset your cash capital to <strong>$100,000 USD</strong> and clear your open positions.
+              This will reset your cash capital back to <strong>$100,000 USD</strong> and clear your open positions so you can start fresh.
             </p>
             <div className="flex gap-3 pt-2">
               <button

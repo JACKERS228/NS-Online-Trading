@@ -3,11 +3,10 @@ import { useAuth } from '../context/AuthContext';
 import { useMarket } from '../context/MarketContext';
 import { 
   Package, Flame, Shield, Wheat, Mountain, Gem, 
-  TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, 
-  ArrowRight, ShieldCheck, Activity
+  ArrowUpRight, ArrowDownRight, ArrowRight, ShieldCheck
 } from 'lucide-react';
 
-export default function CommoditiesMarket({ onSelectCommodity }) {
+export default React.memo(function CommoditiesMarket({ onSelectCommodity }) {
   const { formatMoney, formatRawUSD } = useAuth();
   const { assets, setSelectedTicker, priceFlashMap } = useMarket();
 
@@ -36,10 +35,10 @@ export default function CommoditiesMarket({ onSelectCommodity }) {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-white">
-              Global Strategic Commodities Exchange
+              Raw Commodities Market
             </h1>
             <p className="text-xs sm:text-sm text-slate-400">
-              Trade vital energy, agricultural, and industrial resource contracts priced in global benchmark reserves.
+              Trade physical resources like Oil, Gold, Uranium, and Wheat whose prices shift with global events.
             </p>
           </div>
         </div>
@@ -88,17 +87,17 @@ export default function CommoditiesMarket({ onSelectCommodity }) {
               {/* Price Metrics */}
               <div className="space-y-2 pt-3 border-t border-white/5 font-mono">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400">Spot Market Price:</span>
+                  <span className="text-xs text-slate-400">Current Market Price:</span>
                   <span className="text-lg font-black text-white">
                     {formatMoney(comm.current_price_usd)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>USD Benchmark:</span>
+                  <span>In US Dollars:</span>
                   <span className="text-slate-300 font-semibold">{formatRawUSD(comm.current_price_usd)}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>24h Traded Volume:</span>
+                  <span>Traded Today:</span>
                   <span className="text-brand-cyan font-semibold">{Number(comm.volume_24h).toLocaleString()} units</span>
                 </div>
               </div>
@@ -111,7 +110,7 @@ export default function CommoditiesMarket({ onSelectCommodity }) {
                 }}
                 className="w-full py-2.5 px-4 rounded-xl bg-dark-800 hover:bg-dark-750 border border-white/10 hover:border-amber-400/40 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
               >
-                Trade {comm.ticker} Spot Contract <ArrowRight className="w-3.5 h-3.5" />
+                Trade {comm.name} ({comm.ticker}) <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           );
@@ -120,4 +119,4 @@ export default function CommoditiesMarket({ onSelectCommodity }) {
 
     </div>
   );
-}
+});

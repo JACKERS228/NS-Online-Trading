@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
-  Globe2, ArrowRightLeft, DollarSign, Trophy, 
-  RefreshCw, Search, Coins, Sparkles, Building
+  Globe2, ArrowRightLeft, Trophy, Sparkles
 } from 'lucide-react';
 
-export default function ForexAndNations() {
+export default React.memo(function ForexAndNations() {
   const { nation, formatMoney, formatRawUSD } = useAuth();
   const [nationsList, setNationsList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,10 +70,10 @@ export default function ForexAndNations() {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-white">
-              Forex Exchange & Sovereign Nations Directory
+              Currency Converter & Nations Leaderboard
             </h1>
             <p className="text-xs sm:text-sm text-slate-400">
-              Convert currencies dynamically across nations and view the sovereign net worth leaderboard.
+              Convert money between any nation's currency and see who tops the global wealth leaderboard.
             </p>
           </div>
         </div>
@@ -84,14 +83,14 @@ export default function ForexAndNations() {
       <div className="p-6 rounded-2xl bg-dark-900 border border-brand-cyan/30 shadow-2xl space-y-5">
         <div className="flex items-center gap-2 text-sm font-bold text-white border-b border-white/5 pb-3">
           <ArrowRightLeft className="w-5 h-5 text-brand-cyan" />
-          Cross-Nation Currency Exchange Calculator
+          Live Currency Converter
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
           
           {/* Source Currency */}
           <div className="lg:col-span-5 p-4 rounded-xl bg-dark-850 border border-white/10 space-y-3">
-            <label className="block text-xs font-semibold text-slate-300">From Sovereign Currency:</label>
+            <label className="block text-xs font-semibold text-slate-300">Starting Currency:</label>
             <select
               value={sourceNationId}
               onChange={(e) => setSourceNationId(e.target.value)}
@@ -133,13 +132,13 @@ export default function ForexAndNations() {
 
           {/* Target Currency (5 cols) */}
           <div className="lg:col-span-5 p-4 rounded-xl bg-dark-850 border border-white/10 space-y-3">
-            <label className="block text-xs font-semibold text-slate-300">To Target Currency:</label>
+            <label className="block text-xs font-semibold text-slate-300">Convert Into:</label>
             <select
               value={targetNationId}
               onChange={(e) => setTargetNationId(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-dark-900 border border-white/10 text-white text-xs focus:outline-none focus:border-brand-cyan"
             >
-              <option value="usd_benchmark">Global USD Benchmark ($ USD)</option>
+              <option value="usd_benchmark">US Dollars ($ USD)</option>
               {nationsList.map(n => (
                 <option key={n.id} value={n.id}>
                   {n.name} — {n.currency_symbol} {n.currency_name} (1 USD = {n.usd_exchange_rate})
@@ -148,7 +147,7 @@ export default function ForexAndNations() {
             </select>
 
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1">Converted Value:</label>
+              <label className="block text-[11px] text-slate-400 mb-1">Converted Total:</label>
               <div className="p-2.5 rounded-xl bg-dark-950 border border-white/5 font-mono text-sm font-bold text-brand-green flex items-center justify-between">
                 <span>{targetSymbol}{targetAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 <span className="text-xs text-slate-400 font-normal">{targetCurrencyLabel}</span>
@@ -164,9 +163,9 @@ export default function ForexAndNations() {
         <div className="flex items-center justify-between border-b border-white/5 pb-3">
           <div className="flex items-center gap-2 text-sm font-bold text-white">
             <Trophy className="w-5 h-5 text-brand-gold" />
-            Sovereign Nations Leaderboard & Currency Directory
+            Global Nation Wealth Leaderboard
           </div>
-          <span className="text-xs font-mono text-slate-400">{nationsList.length} Nations Registered</span>
+          <span className="text-xs font-mono text-slate-400">{nationsList.length} Nations Competing</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -174,10 +173,10 @@ export default function ForexAndNations() {
             <thead>
               <tr className="border-b border-white/10 bg-dark-950/60 text-slate-400 text-[11px]">
                 <th className="p-3.5">Rank</th>
-                <th className="p-3.5">Sovereign Nation</th>
+                <th className="p-3.5">Nation Name</th>
                 <th className="p-3.5">National Currency</th>
-                <th className="p-3.5">USD Exchange Peg</th>
-                <th className="p-3.5">Cash Capital</th>
+                <th className="p-3.5">USD Exchange Rate</th>
+                <th className="p-3.5">Available Cash</th>
                 <th className="p-3.5 text-right">Total Net Worth (USD)</th>
               </tr>
             </thead>
@@ -218,4 +217,4 @@ export default function ForexAndNations() {
 
     </div>
   );
-}
+});

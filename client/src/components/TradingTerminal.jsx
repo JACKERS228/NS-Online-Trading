@@ -3,9 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { useMarket } from '../context/MarketContext';
 import TradingChart from './TradingChart';
 import { 
-  TrendingUp, TrendingDown, DollarSign, ArrowUpRight, 
-  ArrowDownRight, Search, Activity, ShieldCheck, 
-  Layers, ChevronRight, Zap
+  TrendingUp, TrendingDown, ArrowUpRight, 
+  ArrowDownRight, Search, Activity, Zap, Info, HelpCircle
 } from 'lucide-react';
 
 // Memoized Asset List Item in Screener
@@ -37,7 +36,7 @@ const AssetListItem = React.memo(function AssetListItem({ asset, isSelected, fla
             <span className="text-[10px] text-slate-400 font-sans truncate max-w-[90px]">{asset.name}</span>
           </div>
           <div className="text-[10px] text-slate-500 uppercase font-mono">
-            {asset.type} • {asset.sector || 'Sovereign Asset'}
+            {asset.type === 'stock' ? 'Stock' : asset.type === 'commodity' ? 'Commodity' : 'Crypto'} • {asset.sector || 'Sovereign'}
           </div>
         </div>
       </div>
@@ -66,7 +65,7 @@ const LiveTradeRow = React.memo(function LiveTradeRow({ trade, formatMoney }) {
         <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold ${
           isBuy ? 'bg-brand-green/20 text-brand-green' : 'bg-brand-red/20 text-brand-red'
         }`}>
-          {trade.side}
+          {isBuy ? 'BOUGHT' : 'SOLD'}
         </span>
         <span className="font-bold text-white">{trade.ticker}</span>
         <span className="text-slate-400 text-[10px] truncate max-w-[80px]">{trade.trader}</span>
@@ -152,7 +151,7 @@ const OrderDesk = React.memo(function OrderDesk({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Trade execution rejected');
+        throw new Error(data.error || 'Trade rejected');
       }
 
       setSuccess(data.message);
@@ -171,10 +170,10 @@ const OrderDesk = React.memo(function OrderDesk({
     <div className="p-5 rounded-2xl bg-dark-900 border border-white/10 shadow-xl space-y-4">
       <div className="flex items-center justify-between border-b border-white/5 pb-3">
         <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <Zap className="w-4 h-4 text-brand-cyan" /> Order Entry Desk
+          <Zap className="w-4 h-4 text-brand-cyan" /> Quick Buy & Sell
         </h3>
         <span className="text-[10px] px-2 py-0.5 rounded bg-brand-cyan/10 text-brand-cyan font-mono font-bold">
-          Market Order
+          Instant Trade
         </span>
       </div>
 
@@ -204,12 +203,12 @@ const OrderDesk = React.memo(function OrderDesk({
         {/* Quantity Input */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Order Quantity</span>
+            <span>How many shares / units?</span>
             <span className="font-mono text-[11px]">
               {side === 'BUY' ? (
-                <>Max Buy: <strong className="text-brand-green">{maxBuyShares.toLocaleString()}</strong></>
+                <>You can afford: <strong className="text-brand-green">{maxBuyShares.toLocaleString()}</strong></>
               ) : (
-                <>Available: <strong className="text-amber-400">{maxSellShares.toLocaleString()}</strong></>
+                <>You own: <strong className="text-amber-400">{maxSellShares.toLocaleString()}</strong></>
               )}
             </span>
           </div>
@@ -226,21 +225,21 @@ const OrderDesk = React.memo(function OrderDesk({
             <button
               type="button"
               onClick={() => setQuantity(side === 'BUY' ? Math.max(1, maxBuyShares) : Math.max(1, maxSellShares))}
-              className="absolute right-2.5 top-2.5 px-2 py-1 rounded bg-dark-750 text-[10px] font-mono text-brand-cyan font-bold hover:bg-dark-700"
+              className="absolute right-2.5 top-2.5 px-2 py-1 rounded bg-dark-750 text-[10px] font-mono text-brand-cyan font-bold hover:bg-dark-700 cursor-pointer"
             >
               MAX
             </button>
           </div>
         </div>
 
-        {/* Preset Quantity Buttons */}
+        {/* Quick Quantity Buttons */}
         <div className="grid grid-cols-4 gap-1.5 font-mono text-xs">
           {[10, 50, 100, 500].map((q) => (
             <button
               key={q}
               type="button"
               onClick={() => setQuantity(q)}
-              className="py-1.5 rounded-lg bg-dark-850 hover:bg-dark-800 border border-white/5 text-slate-300 font-semibold"
+              className="py-1.5 rounded-lg bg-dark-850 hover:bg-dark-800 border border-white/5 text-slate-300 font-semibold cursor-pointer"
             >
               +{q}
             </button>
@@ -250,17 +249,17 @@ const OrderDesk = React.memo(function OrderDesk({
         {/* Order Cost Breakdown */}
         <div className="p-3.5 rounded-xl bg-dark-950/60 border border-white/5 font-mono text-xs space-y-2">
           <div className="flex items-center justify-between text-slate-400">
-            <span>Spot Execution Price:</span>
+            <span>Price Per Unit:</span>
             <span className="text-white font-bold">{formatMoney(priceUsd)}</span>
           </div>
           <div className="flex items-center justify-between text-slate-400">
-            <span>Estimated Total Value:</span>
+            <span>Total {side === 'BUY' ? 'Cost' : 'Payout'}:</span>
             <span className={`text-base font-extrabold ${side === 'BUY' ? 'text-brand-green' : 'text-brand-red'}`}>
               {formatMoney(totalUsd)}
             </span>
           </div>
           <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-white/5">
-            <span>USD Benchmark:</span>
+            <span>In US Dollars:</span>
             <span className="text-slate-400">{formatRawUSD(totalUsd)}</span>
           </div>
         </div>
@@ -287,7 +286,7 @@ const OrderDesk = React.memo(function OrderDesk({
           }`}
         >
           {loading ? (
-            'Executing Order on Engine...'
+            'Processing Trade...'
           ) : nation ? (
             `${side} ${numQty.toLocaleString()} ${asset.ticker}`
           ) : (
@@ -343,9 +342,9 @@ export default React.memo(function TradingTerminal() {
             
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-extrabold text-white uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                <Activity className="w-4 h-4 text-brand-cyan" /> Market Screener
+                <Activity className="w-4 h-4 text-brand-cyan" /> Browse Markets
               </h2>
-              <span className="text-[10px] font-mono text-slate-400">{filteredAssets.length} Assets</span>
+              <span className="text-[10px] font-mono text-slate-400">{filteredAssets.length} Total</span>
             </div>
 
             {/* Instant Search Bar */}
@@ -353,7 +352,7 @@ export default React.memo(function TradingTerminal() {
               <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search ticker or name..."
+                placeholder="Search by name or ticker..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 rounded-xl bg-dark-850 border border-white/5 text-xs text-white focus:outline-none focus:border-brand-cyan"
@@ -362,15 +361,20 @@ export default React.memo(function TradingTerminal() {
 
             {/* Category Filter Chips */}
             <div className="flex gap-1 overflow-x-auto pb-1 text-[10px] font-mono">
-              {['ALL', 'STOCK', 'COMMODITY', 'CRYPTO'].map((type) => (
+              {[
+                { id: 'ALL', label: 'All' },
+                { id: 'STOCK', label: 'Stocks' },
+                { id: 'COMMODITY', label: 'Commodities' },
+                { id: 'CRYPTO', label: 'Crypto' }
+              ].map((tab) => (
                 <button
-                  key={type}
-                  onClick={() => setFilterType(type)}
+                  key={tab.id}
+                  onClick={() => setFilterType(tab.id)}
                   className={`px-2.5 py-1 rounded-lg transition shrink-0 cursor-pointer ${
-                    filterType === type ? 'bg-brand-cyan text-dark-950 font-bold' : 'bg-dark-800 text-slate-400 hover:text-white'
+                    filterType === tab.id ? 'bg-brand-cyan text-dark-950 font-bold' : 'bg-dark-800 text-slate-400 hover:text-white'
                   }`}
                 >
-                  {type}
+                  {tab.label}
                 </button>
               ))}
             </div>
@@ -407,11 +411,11 @@ export default React.memo(function TradingTerminal() {
                   <div className="flex items-center gap-2">
                     <h1 className="text-lg font-extrabold text-white">{selectedAsset.name}</h1>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-dark-800 text-slate-300 font-mono uppercase">
-                      {selectedAsset.type}
+                      {selectedAsset.type === 'stock' ? 'Company Stock' : selectedAsset.type === 'commodity' ? 'Raw Commodity' : 'Cryptocurrency'}
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 font-mono">
-                    Sector: <span className="text-slate-300">{selectedAsset.sector || 'Sovereign Asset'}</span> • Health: <span className="text-brand-green">{selectedAsset.health_score || 85}/100</span>
+                    Sector: <span className="text-slate-300">{selectedAsset.sector || 'Sovereign Asset'}</span> • Health Rating: <span className="text-brand-green">{selectedAsset.health_score || 85}/100</span>
                   </p>
                 </div>
               </div>
@@ -425,7 +429,7 @@ export default React.memo(function TradingTerminal() {
                   isUp ? 'text-brand-green' : 'text-brand-red'
                 }`}>
                   {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  {isUp ? '+' : ''}{(Number(selectedAsset.change_24h) || 0).toFixed(2)}% (24h)
+                  {isUp ? '+' : ''}{(Number(selectedAsset.change_24h) || 0).toFixed(2)}% (Today)
                 </div>
               </div>
             </div>
@@ -440,20 +444,20 @@ export default React.memo(function TradingTerminal() {
           {selectedAsset && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-dark-900 border border-white/10 font-mono text-xs">
               <div className="p-3 rounded-xl bg-dark-950/60">
-                <span className="text-slate-500 block text-[10px] uppercase">Market Cap</span>
+                <span className="text-slate-500 block text-[10px] uppercase">Total Worth</span>
                 <span className="text-sm font-bold text-white">{formatMoney(selectedAsset.market_cap_usd, { compact: true })}</span>
               </div>
               <div className="p-3 rounded-xl bg-dark-950/60">
-                <span className="text-slate-500 block text-[10px] uppercase">24h High</span>
+                <span className="text-slate-500 block text-[10px] uppercase">Today's Highest</span>
                 <span className="text-sm font-bold text-brand-green">{formatMoney(selectedAsset.high_24h_usd)}</span>
               </div>
               <div className="p-3 rounded-xl bg-dark-950/60">
-                <span className="text-slate-500 block text-[10px] uppercase">24h Low</span>
+                <span className="text-slate-500 block text-[10px] uppercase">Today's Lowest</span>
                 <span className="text-sm font-bold text-brand-red">{formatMoney(selectedAsset.low_24h_usd)}</span>
               </div>
               <div className="p-3 rounded-xl bg-dark-950/60">
-                <span className="text-slate-500 block text-[10px] uppercase">24h Volume</span>
-                <span className="text-sm font-bold text-brand-cyan">{Number(selectedAsset.volume_24h || 0).toLocaleString()}</span>
+                <span className="text-slate-500 block text-[10px] uppercase">Total Traded Today</span>
+                <span className="text-sm font-bold text-brand-cyan">{Number(selectedAsset.volume_24h || 0).toLocaleString()} units</span>
               </div>
             </div>
           )}
@@ -477,10 +481,10 @@ export default React.memo(function TradingTerminal() {
           <div className="p-4 rounded-2xl bg-dark-900 border border-white/10 shadow-xl space-y-3">
             <div className="flex items-center justify-between border-b border-white/5 pb-2">
               <h3 className="text-xs font-extrabold text-white uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                <Activity className="w-3.5 h-3.5 text-brand-green" /> Live Order Stream
+                <Activity className="w-3.5 h-3.5 text-brand-green" /> Recent Trades Feed
               </h3>
               <span className="text-[10px] font-mono text-brand-green flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-ping" /> Real-time
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-ping" /> Live
               </span>
             </div>
 
