@@ -1,42 +1,41 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { BarChart3, LineChart as LineIcon, Maximize2, RefreshCw } from 'lucide-react';
+import { BarChart3, LineChart as LineIcon, RefreshCw } from 'lucide-react';
 
-export default function TradingChart({ asset }) {
+export default React.memo(function TradingChart({ asset }) {
   const { formatMoney } = useAuth();
   const [candles, setCandles] = useState([]);
-  const [chartType, setChartType] = useState('candlestick'); // 'candlestick' | 'line'
+  const [chartType, setChartType] = useState('candlestick');
   const [timeframe, setTimeframe] = useState('1m');
   const [hoveredCandle, setHoveredCandle] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 600, height: 340 });
+  const hoverRafRef = useRef(null);
 
-  // Fetch candle data whenever asset or timeframe changes
+  // Fetch candle data
   useEffect(() => {
     if (!asset) return;
 
     let isMounted = true;
     async function fetchCandles() {
       try {
-        setLoading(true);
         const res = await fetch(`/api/market/candles/${asset.ticker}?timeframe=${timeframe}&limit=60`);
         if (res.ok) {
           const data = await res.json();
           if (isMounted) {
             setCandles(data.candles || []);
+            setLoading(false);
           }
         }
       } catch (err) {
         console.error('Error fetching candles:', err);
-      } finally {
-        if (isMounted) setLoading(false);
       }
     }
 
     fetchCandles();
-    const interval = setInterval(fetchCandles, 5000); // Polling for updated candle data
+    const interval = setInterval(fetchCandles, 5000);
 
     return () => {
       isMounted = false;
@@ -44,9 +43,11 @@ export default function TradingChart({ asset }) {
     };
   }, [asset?.ticker, timeframe]);
 
-  // Handle Resize
+  // Debounced Resize Observer
   useEffect(() => {
-    function handleResize() {
+    let resizeTimer = null;
+
+    function updateSize() {
       if (containerRef.current) {
         setDimensions({
           width: containerRef.current.clientWidth,
@@ -55,48 +56,105 @@ export default function TradingChart({ asset }) {
       }
     }
 
-    handleResize();
+    function handleResize() {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(updateSize, 100);
+    }
+
+    updateSize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeTimer) clearTimeout(resizeTimer);
+    };
   }, []);
+
+  // Throttled mouse enter handler using requestAnimationFrame
+  const handleCandleHover = useCallback((c) => {
+    if (hoverRafRef.current) cancelAnimationFrame(hoverRafRef.current);
+    hoverRafRef.current = requestAnimationFrame(() => {
+      setHoveredCandle(c);
+    });
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverRafRef.current) cancelAnimationFrame(hoverRafRef.current);
+    setHoveredCandle(null);
+  }, []);
+
+  // Memoized coordinate calculations to eliminate frame-rate drops
+  const chartMath = useMemo(() => {
+    const allCandles = [...candles];
+    if (allCandles.length === 0 && asset) {
+      allCandles.push({
+        timestamp: Date.now(),
+        open: Number(asset.current_price_usd) || 10,
+        high: Number(asset.high_24h_usd) || 10,
+        low: Number(asset.low_24h_usd) || 10,
+        close: Number(asset.current_price_usd) || 10,
+        volume: 1000
+      });
+    }
+
+    const prices = allCandles.flatMap(c => [Number(c.low), Number(c.high)]);
+    const minPrice = (Math.min(...prices) || 1) * 0.998;
+    const maxPrice = (Math.max(...prices) || 10) * 1.002;
+    const priceRange = maxPrice - minPrice || 1;
+
+    const maxVolume = Math.max(...allCandles.map(c => Number(c.volume) || 0), 100);
+
+    const paddingLeft = 10;
+    const paddingRight = 65;
+    const paddingTop = 20;
+    const paddingBottom = 40;
+    const chartHeight = dimensions.height - paddingTop - paddingBottom;
+    const chartWidth = dimensions.width - paddingLeft - paddingRight;
+
+    const candleWidth = Math.max(4, Math.min(18, (chartWidth / (allCandles.length || 1)) * 0.7));
+
+    const getY = (val) => paddingTop + chartHeight - ((val - minPrice) / priceRange) * chartHeight;
+    const getX = (index) => paddingLeft + (index * (chartWidth / (allCandles.length - 1 || 1)));
+
+    const linePoints = allCandles.map((c, i) => `${getX(i)},${getY(Number(c.close))}`).join(' ');
+    const areaPoints = `${getX(0)},${paddingTop + chartHeight} ${linePoints} ${getX(allCandles.length - 1)},${paddingTop + chartHeight}`;
+
+    return {
+      allCandles,
+      minPrice,
+      maxPrice,
+      priceRange,
+      maxVolume,
+      paddingLeft,
+      paddingRight,
+      paddingTop,
+      paddingBottom,
+      chartHeight,
+      chartWidth,
+      candleWidth,
+      getY,
+      getX,
+      linePoints,
+      areaPoints
+    };
+  }, [candles, asset, dimensions]);
 
   if (!asset) return null;
 
-  // Compute price ranges for scaling
-  const allCandles = [...candles];
-  if (allCandles.length === 0) {
-    allCandles.push({
-      timestamp: Date.now(),
-      open: asset.current_price_usd,
-      high: asset.high_24h_usd,
-      low: asset.low_24h_usd,
-      close: asset.current_price_usd,
-      volume: 1000
-    });
-  }
-
-  const prices = allCandles.flatMap(c => [c.low, c.high]);
-  const minPrice = Math.min(...prices) * 0.998;
-  const maxPrice = Math.max(...prices) * 1.002;
-  const priceRange = maxPrice - minPrice || 1;
-
-  const maxVolume = Math.max(...allCandles.map(c => c.volume), 100);
-
-  const paddingLeft = 10;
-  const paddingRight = 65;
-  const paddingTop = 20;
-  const paddingBottom = 40;
-  const chartHeight = dimensions.height - paddingTop - paddingBottom;
-  const chartWidth = dimensions.width - paddingLeft - paddingRight;
-
-  const candleWidth = Math.max(4, Math.min(18, (chartWidth / allCandles.length) * 0.7));
-
-  const getY = (val) => paddingTop + chartHeight - ((val - minPrice) / priceRange) * chartHeight;
-  const getX = (index) => paddingLeft + (index * (chartWidth / (allCandles.length - 1 || 1)));
-
-  // Generate SVG path for line chart
-  const linePoints = allCandles.map((c, i) => `${getX(i)},${getY(c.close)}`).join(' ');
-  const areaPoints = `${getX(0)},${paddingTop + chartHeight} ${linePoints} ${getX(allCandles.length - 1)},${paddingTop + chartHeight}`;
+  const {
+    allCandles,
+    minPrice,
+    priceRange,
+    maxVolume,
+    paddingLeft,
+    paddingRight,
+    paddingTop,
+    chartHeight,
+    candleWidth,
+    getY,
+    getX,
+    linePoints,
+    areaPoints
+  } = chartMath;
 
   return (
     <div className="flex flex-col h-full rounded-2xl bg-dark-900 border border-white/10 overflow-hidden">
@@ -105,13 +163,12 @@ export default function TradingChart({ asset }) {
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 bg-dark-950/60">
         <div className="flex items-center gap-2">
           
-          {/* Timeframe Buttons */}
           <div className="flex rounded-lg bg-dark-850 p-0.5 border border-white/5 text-[11px] font-mono font-medium">
             {['1m', '5m', '15m', '1h', '1D'].map((tf) => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}
-                className={`px-2 py-1 rounded transition ${
+                className={`px-2 py-1 rounded transition cursor-pointer ${
                   timeframe === tf ? 'bg-dark-700 text-brand-cyan font-bold' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -120,12 +177,11 @@ export default function TradingChart({ asset }) {
             ))}
           </div>
 
-          {/* Candlestick vs Line Toggle */}
           <div className="flex rounded-lg bg-dark-850 p-0.5 border border-white/5 text-[11px]">
             <button
               onClick={() => setChartType('candlestick')}
               title="Candlestick Chart"
-              className={`p-1.5 rounded transition ${
+              className={`p-1.5 rounded transition cursor-pointer ${
                 chartType === 'candlestick' ? 'bg-dark-700 text-brand-cyan' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -134,7 +190,7 @@ export default function TradingChart({ asset }) {
             <button
               onClick={() => setChartType('line')}
               title="Area Line Chart"
-              className={`p-1.5 rounded transition ${
+              className={`p-1.5 rounded transition cursor-pointer ${
                 chartType === 'line' ? 'bg-dark-700 text-brand-cyan' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -147,11 +203,11 @@ export default function TradingChart({ asset }) {
         <div className="flex items-center gap-4 text-xs font-mono">
           {hoveredCandle ? (
             <div className="flex items-center gap-3 text-[11px]">
-              <span className="text-slate-400">O: <strong className="text-white">${hoveredCandle.open.toFixed(2)}</strong></span>
-              <span className="text-slate-400">H: <strong className="text-white">${hoveredCandle.high.toFixed(2)}</strong></span>
-              <span className="text-slate-400">L: <strong className="text-white">${hoveredCandle.low.toFixed(2)}</strong></span>
-              <span className="text-slate-400">C: <strong className={hoveredCandle.close >= hoveredCandle.open ? 'text-brand-green' : 'text-brand-red'}>${hoveredCandle.close.toFixed(2)}</strong></span>
-              <span className="text-slate-400">Vol: <strong className="text-brand-cyan">{hoveredCandle.volume.toLocaleString()}</strong></span>
+              <span className="text-slate-400">O: <strong className="text-white">${Number(hoveredCandle.open).toFixed(2)}</strong></span>
+              <span className="text-slate-400">H: <strong className="text-white">${Number(hoveredCandle.high).toFixed(2)}</strong></span>
+              <span className="text-slate-400">L: <strong className="text-white">${Number(hoveredCandle.low).toFixed(2)}</strong></span>
+              <span className="text-slate-400">C: <strong className={Number(hoveredCandle.close) >= Number(hoveredCandle.open) ? 'text-brand-green' : 'text-brand-red'}>${Number(hoveredCandle.close).toFixed(2)}</strong></span>
+              <span className="text-slate-400">Vol: <strong className="text-brand-cyan">{Number(hoveredCandle.volume).toLocaleString()}</strong></span>
             </div>
           ) : (
             <div className="text-slate-500 text-[11px] flex items-center gap-1.5">
@@ -172,7 +228,7 @@ export default function TradingChart({ asset }) {
             width="100%"
             height={dimensions.height}
             className="cursor-crosshair select-none"
-            onMouseLeave={() => setHoveredCandle(null)}
+            onMouseLeave={handleMouseLeave}
           >
             <defs>
               <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
@@ -208,12 +264,12 @@ export default function TradingChart({ asset }) {
               );
             })}
 
-            {/* Volume Histogram bars at bottom */}
+            {/* Volume Histogram bars */}
             {allCandles.map((c, i) => {
               const x = getX(i);
-              const volHeight = (c.volume / maxVolume) * 45;
+              const volHeight = (Number(c.volume) / maxVolume) * 45;
               const y = paddingTop + chartHeight - volHeight;
-              const isUp = c.close >= c.open;
+              const isUp = Number(c.close) >= Number(c.open);
 
               return (
                 <rect
@@ -243,12 +299,12 @@ export default function TradingChart({ asset }) {
             ) : (
               allCandles.map((c, i) => {
                 const x = getX(i);
-                const openY = getY(c.open);
-                const closeY = getY(c.close);
-                const highY = getY(c.high);
-                const lowY = getY(c.low);
+                const openY = getY(Number(c.open));
+                const closeY = getY(Number(c.close));
+                const highY = getY(Number(c.high));
+                const lowY = getY(Number(c.low));
 
-                const isUp = c.close >= c.open;
+                const isUp = Number(c.close) >= Number(c.open);
                 const candleTop = Math.min(openY, closeY);
                 const candleBodyHeight = Math.max(2, Math.abs(closeY - openY));
                 const color = isUp ? '#00f59b' : '#ff3b69';
@@ -256,10 +312,9 @@ export default function TradingChart({ asset }) {
                 return (
                   <g
                     key={i}
-                    onMouseEnter={() => setHoveredCandle(c)}
+                    onMouseEnter={() => handleCandleHover(c)}
                     className="transition-opacity hover:opacity-80"
                   >
-                    {/* Wick */}
                     <line
                       x1={x}
                       y1={highY}
@@ -268,7 +323,6 @@ export default function TradingChart({ asset }) {
                       stroke={color}
                       strokeWidth="1.2"
                     />
-                    {/* Body */}
                     <rect
                       x={x - candleWidth / 2}
                       y={candleTop}
@@ -283,37 +337,41 @@ export default function TradingChart({ asset }) {
             )}
 
             {/* Current Price Dashed Reference Line */}
-            <line
-              x1={paddingLeft}
-              y1={getY(asset.current_price_usd)}
-              x2={dimensions.width - paddingRight}
-              y2={getY(asset.current_price_usd)}
-              stroke="#00f59b"
-              strokeDasharray="2 2"
-              strokeWidth="1"
-            />
-            <rect
-              x={dimensions.width - paddingRight + 4}
-              y={getY(asset.current_price_usd) - 8}
-              width={paddingRight - 6}
-              height="16"
-              fill="#00f59b"
-              rx="3"
-            />
-            <text
-              x={dimensions.width - paddingRight + 7}
-              y={getY(asset.current_price_usd) + 4}
-              fill="#07090e"
-              fontSize="9"
-              fontWeight="bold"
-              fontFamily="JetBrains Mono"
-            >
-              ${asset.current_price_usd.toFixed(2)}
-            </text>
+            {asset && (
+              <>
+                <line
+                  x1={paddingLeft}
+                  y1={getY(Number(asset.current_price_usd))}
+                  x2={dimensions.width - paddingRight}
+                  y2={getY(Number(asset.current_price_usd))}
+                  stroke="#00f59b"
+                  strokeDasharray="2 2"
+                  strokeWidth="1"
+                />
+                <rect
+                  x={dimensions.width - paddingRight + 4}
+                  y={getY(Number(asset.current_price_usd)) - 8}
+                  width={paddingRight - 6}
+                  height="16"
+                  fill="#00f59b"
+                  rx="3"
+                />
+                <text
+                  x={dimensions.width - paddingRight + 7}
+                  y={getY(Number(asset.current_price_usd)) + 4}
+                  fill="#07090e"
+                  fontSize="9"
+                  fontWeight="bold"
+                  fontFamily="JetBrains Mono"
+                >
+                  ${Number(asset.current_price_usd).toFixed(2)}
+                </text>
+              </>
+            )}
           </svg>
         )}
       </div>
 
     </div>
   );
-}
+});

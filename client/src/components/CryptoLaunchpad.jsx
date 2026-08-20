@@ -1,59 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useMarket } from '../context/MarketContext';
 import { 
   Coins, Sparkles, Flame, ShieldCheck, Zap, Rocket, 
-  TrendingUp, CheckCircle2, ArrowRight, Layers
+  TrendingUp, CheckCircle2, ArrowRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export default function CryptoLaunchpad({ onTokenCreated }) {
-  const { nation, formatMoney, formatRawUSD, refreshProfile, setAuthModalOpen } = useAuth();
+const CATEGORIES = [
+  { id: 'Sovereign National Reserve', label: 'Sovereign Reserve', icon: ShieldCheck, desc: 'Central bank backed crypto treasury asset' },
+  { id: 'DeFi & Yield Protocol', label: 'DeFi & Yield', icon: Zap, desc: 'Automated staking contracts and protocol fees' },
+  { id: 'Meme & Community Hype', label: 'Meme / Moonshot', icon: Flame, desc: 'Viral speculative asset driven by social sentiment' },
+  { id: 'Autonomous Utility', label: 'Tech Utility', icon: Rocket, desc: 'Network compute fuel and decentralized storage token' },
+];
+
+const SUPPLIES = {
+  1: { name: 'Ultra-Scarce', supply: 1000000, label: '1,000,000 Tokens' },
+  2: { name: 'Sovereign Standard', supply: 21000000, label: '21,000,000 Tokens' },
+  3: { name: 'Utility Reserve', supply: 100000000, label: '100,000,000 Tokens' },
+  4: { name: 'High Liquidity', supply: 1000000000, label: '1,000,000,000 Tokens' },
+  5: { name: 'Memecoin Hyper-Supply', supply: 100000000000, label: '100,000,000,000 Tokens' },
+};
+
+const BASE_PRICES = {
+  1: 50.0,
+  2: 12.50,
+  3: 2.20,
+  4: 0.35,
+  5: 0.0042
+};
+
+export default React.memo(function CryptoLaunchpad({ onTokenCreated }) {
+  const { nation, formatMoney, refreshProfile, setAuthModalOpen } = useAuth();
   const { setSelectedTicker } = useMarket();
 
   const [tokenName, setTokenName] = useState('');
   const [ticker, setTicker] = useState('');
   const [category, setCategory] = useState('Sovereign National Reserve');
   const [description, setDescription] = useState('');
-  const [supplyTier, setSupplyTier] = useState(2); // 1 to 5 (21M default)
-  const [hypeLevel, setHypeLevel] = useState(3); // 1 to 5
-  const [stakingYield, setStakingYield] = useState(6); // %
+  const [supplyTier, setSupplyTier] = useState(2);
+  const [hypeLevel, setHypeLevel] = useState(3);
+  const [stakingYield, setStakingYield] = useState(6);
 
   const [loading, setLoading] = useState(false);
   const [successToken, setSuccessToken] = useState(null);
   const [error, setError] = useState('');
 
-  const categories = [
-    { id: 'Sovereign National Reserve', label: 'Sovereign Reserve', icon: ShieldCheck, desc: 'Central bank backed crypto treasury asset' },
-    { id: 'DeFi & Yield Protocol', label: 'DeFi & Yield', icon: Zap, desc: 'Automated staking contracts and protocol fees' },
-    { id: 'Meme & Community Hype', label: 'Meme / Moonshot', icon: Flame, desc: 'Viral speculative asset driven by social sentiment' },
-    { id: 'Autonomous Utility', label: 'Tech Utility', icon: Rocket, desc: 'Network compute fuel and decentralized storage token' },
-  ];
+  const tokenomics = useMemo(() => {
+    const supply = SUPPLIES[supplyTier]?.supply || 21000000;
+    const hypeMult = 0.5 + (Number(hypeLevel) * 0.3);
+    const initialPrice = +(BASE_PRICES[supplyTier] * hypeMult).toFixed(4);
+    const marketCap = +(initialPrice * supply).toFixed(2);
+    const founderAllocation = Math.floor(supply * 0.1);
+    const founderValue = +(founderAllocation * initialPrice).toFixed(2);
 
-  const supplies = {
-    1: { name: 'Ultra-Scarce', supply: 1000000, label: '1,000,000 Tokens' },
-    2: { name: 'Sovereign Standard', supply: 21000000, label: '21,000,000 Tokens' },
-    3: { name: 'Utility Reserve', supply: 100000000, label: '100,000,000 Tokens' },
-    4: { name: 'High Liquidity', supply: 1000000000, label: '1,000,000,000 Tokens' },
-    5: { name: 'Memecoin Hyper-Supply', supply: 100000000000, label: '100,000,000,000 Tokens' },
-  };
+    return {
+      supply,
+      initialPrice,
+      marketCap,
+      founderAllocation,
+      founderValue
+    };
+  }, [supplyTier, hypeLevel]);
 
-  const basePrices = {
-    1: 50.0,
-    2: 12.50,
-    3: 2.20,
-    4: 0.35,
-    5: 0.0042
-  };
-
-  const currentSupply = supplies[supplyTier].supply;
-  const hypeMult = 0.5 + (Number(hypeLevel) * 0.3);
-  const estimatedInitialPriceUsd = +(basePrices[supplyTier] * hypeMult).toFixed(4);
-  const estimatedMarketCapUsd = +(estimatedInitialPriceUsd * currentSupply).toFixed(2);
-  const founderTokens = Math.floor(currentSupply * 0.1); // 10% founder genesis allocation
-  const founderEquityValueUsd = +(founderTokens * estimatedInitialPriceUsd).toFixed(2);
-
-  const handleMintGenesis = async (e) => {
+  const handleMintGenesis = useCallback(async (e) => {
     e.preventDefault();
     if (!nation) {
       setAuthModalOpen(true);
@@ -100,7 +110,7 @@ export default function CryptoLaunchpad({ onTokenCreated }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [nation, tokenName, ticker, category, description, supplyTier, hypeLevel, stakingYield, refreshProfile, setAuthModalOpen]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -149,7 +159,7 @@ export default function CryptoLaunchpad({ onTokenCreated }) {
             </div>
             <div>
               <span className="text-slate-400 block">Founder Allocation (10%):</span>
-              <span className="text-base font-bold text-purple-400">{founderTokens.toLocaleString()} {successToken.ticker}</span>
+              <span className="text-base font-bold text-purple-400">{tokenomics.founderAllocation.toLocaleString()} {successToken.ticker}</span>
             </div>
             <div>
               <span className="text-slate-400 block">Total Market Cap:</span>
@@ -230,7 +240,7 @@ export default function CryptoLaunchpad({ onTokenCreated }) {
                 Crypto Token Archetype
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {categories.map((c) => {
+                {CATEGORIES.map((c) => {
                   const Icon = c.icon;
                   const isSelected = category === c.id;
                   return (
@@ -269,7 +279,7 @@ export default function CryptoLaunchpad({ onTokenCreated }) {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-slate-300">Max Supply Cap:</span>
-                <span className="font-bold text-purple-400 font-mono">{supplies[supplyTier].label}</span>
+                <span className="font-bold text-purple-400 font-mono">{SUPPLIES[supplyTier]?.label}</span>
               </div>
               <input
                 type="range"
@@ -338,10 +348,10 @@ export default function CryptoLaunchpad({ onTokenCreated }) {
             <div className="p-4 rounded-xl bg-dark-850 border border-white/5 text-center font-mono space-y-1">
               <span className="text-xs text-slate-400 block uppercase tracking-wider">Estimated Genesis Token Price</span>
               <div className="text-3xl font-black text-purple-400">
-                ${estimatedInitialPriceUsd} USD
+                ${tokenomics.initialPrice} USD
               </div>
               <div className="text-xs text-slate-400">
-                In National Currency: <strong className="text-slate-200">{formatMoney(estimatedInitialPriceUsd)}</strong>
+                In National Currency: <strong className="text-slate-200">{formatMoney(tokenomics.initialPrice)}</strong>
               </div>
             </div>
 
@@ -349,19 +359,19 @@ export default function CryptoLaunchpad({ onTokenCreated }) {
             <div className="space-y-2.5 font-mono text-xs divide-y divide-white/5">
               <div className="flex items-center justify-between pt-1 text-slate-300">
                 <span>Total Token Supply:</span>
-                <span className="font-bold text-white">{currentSupply.toLocaleString()}</span>
+                <span className="font-bold text-white">{tokenomics.supply.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between pt-2 text-slate-300">
                 <span>Genesis Market Cap:</span>
-                <span className="font-bold text-brand-green">{formatMoney(estimatedMarketCapUsd)}</span>
+                <span className="font-bold text-brand-green">{formatMoney(tokenomics.marketCap)}</span>
               </div>
               <div className="flex items-center justify-between pt-2 text-slate-300">
                 <span>Founder Genesis Mint (10%):</span>
-                <span className="font-bold text-purple-400">{founderTokens.toLocaleString()} {ticker || 'Tokens'}</span>
+                <span className="font-bold text-purple-400">{tokenomics.founderAllocation.toLocaleString()} {ticker || 'Tokens'}</span>
               </div>
               <div className="flex items-center justify-between pt-2 text-slate-300">
                 <span>Founder Stake Value:</span>
-                <span className="font-bold text-brand-green">{formatMoney(founderEquityValueUsd)}</span>
+                <span className="font-bold text-brand-green">{formatMoney(tokenomics.founderValue)}</span>
               </div>
               <div className="flex items-center justify-between pt-2 text-slate-300">
                 <span>Staking Protocol Yield:</span>
@@ -397,4 +407,4 @@ export default function CryptoLaunchpad({ onTokenCreated }) {
 
     </div>
   );
-}
+});

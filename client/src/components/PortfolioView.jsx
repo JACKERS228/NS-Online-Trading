@@ -1,28 +1,73 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useMarket } from '../context/MarketContext';
 import { 
-  Briefcase, TrendingUp, TrendingDown, DollarSign, 
-  Coins, Package, Building2, RotateCcw, ArrowUpRight, 
-  ArrowDownRight, RefreshCw, Layers, History, ShieldAlert
+  Briefcase, RotateCcw, Layers, History, ShieldAlert
 } from 'lucide-react';
 
-export default function PortfolioView({ onSelectAsset }) {
-  const { nation, formatMoney, formatRawUSD, resetSandbox, refreshProfile, setAuthModalOpen } = useAuth();
+const HoldingRow = React.memo(function HoldingRow({ holding, formatMoney, onTrade }) {
+  const isPos = holding.unrealized_pnl_usd >= 0;
+  return (
+    <tr className="hover:bg-dark-850/50 transition">
+      <td className="p-3.5">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-white">{holding.ticker}</span>
+          <span className="text-slate-400 text-[10px] truncate max-w-[120px]">{holding.asset_name}</span>
+        </div>
+      </td>
+      <td className="p-3.5 text-slate-200 font-semibold">{Number(holding.quantity).toLocaleString()}</td>
+      <td className="p-3.5 text-slate-400">{formatMoney(holding.average_buy_price_usd)}</td>
+      <td className="p-3.5 text-white font-bold">{formatMoney(holding.current_price_usd)}</td>
+      <td className="p-3.5 text-slate-200 font-bold">{formatMoney(holding.market_value_usd)}</td>
+      <td className={`p-3.5 font-bold ${isPos ? 'text-brand-green' : 'text-brand-red'}`}>
+        {isPos ? '+' : ''}{formatMoney(holding.unrealized_pnl_usd)} ({isPos ? '+' : ''}{holding.unrealized_pnl_percent}%)
+      </td>
+      <td className="p-3.5 text-right">
+        <button
+          onClick={() => onTrade(holding.ticker)}
+          className="py-1 px-3 rounded-lg bg-dark-800 hover:bg-dark-750 text-brand-cyan border border-white/10 hover:border-brand-cyan/40 text-[11px] font-bold transition cursor-pointer"
+        >
+          Trade
+        </button>
+      </td>
+    </tr>
+  );
+});
+
+const HistoryRow = React.memo(function HistoryRow({ order, formatMoney }) {
+  const isBuy = order.side === 'BUY';
+  const dateStr = new Date(order.timestamp).toLocaleTimeString();
+  return (
+    <tr className="hover:bg-dark-850/50">
+      <td className="p-3.5 text-slate-500">{dateStr}</td>
+      <td className={`p-3.5 font-bold ${isBuy ? 'text-brand-green' : 'text-brand-red'}`}>{order.side}</td>
+      <td className="p-3.5 font-bold text-white">{order.ticker}</td>
+      <td className="p-3.5 text-slate-300">{Number(order.quantity).toLocaleString()}</td>
+      <td className="p-3.5 text-slate-300">{formatMoney(order.execution_price_usd)}</td>
+      <td className="p-3.5 text-slate-200 font-bold">{formatMoney(order.total_usd)}</td>
+      <td className="p-3.5 text-brand-green font-semibold">{order.status}</td>
+    </tr>
+  );
+});
+
+export default React.memo(function PortfolioView({ onSelectAsset }) {
+  const { nation, formatMoney, formatRawUSD, resetSandbox, setAuthModalOpen } = useAuth();
   const { setSelectedTicker } = useMarket();
 
   const [portfolioData, setPortfolioData] = useState(null);
   const [tradeHistory, setTradeHistory] = useState([]);
-  const [activeSubTab, setActiveSubTab] = useState('holdings'); // 'holdings' | 'history'
-  const [loading, setLoading] = useState(true);
+  const [activeSubTab, setActiveSubTab] = useState('holdings');
   const [resetModalOpen, setResetModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (!nation) {
-      setLoading(false);
-      return;
-    }
+  const handleTradeClick = useCallback((ticker) => {
+    setSelectedTicker(ticker);
+    if (onSelectAsset) onSelectAsset();
+  }, [setSelectedTicker, onSelectAsset]);
 
+  useEffect(() => {
+    if (!nation) return;
+
+    let isMounted = true;
     async function loadPortfolio() {
       try {
         const token = localStorage.getItem('ns_trading_token');
@@ -33,25 +78,26 @@ export default function PortfolioView({ onSelectAsset }) {
           fetch('/api/trade/history', { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
-        if (pRes.ok) {
+        if (pRes.ok && isMounted) {
           const pData = await pRes.json();
           setPortfolioData(pData);
         }
-        if (hRes.ok) {
+        if (hRes.ok && isMounted) {
           const hData = await hRes.json();
           setTradeHistory(hData.orders || []);
         }
       } catch (err) {
         console.error('Error loading portfolio:', err);
-      } finally {
-        setLoading(false);
       }
     }
 
     loadPortfolio();
-    const interval = setInterval(loadPortfolio, 5000); // Live sync
+    const interval = setInterval(loadPortfolio, 5000);
 
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [nation]);
 
   if (!nation) {
@@ -98,7 +144,7 @@ export default function PortfolioView({ onSelectAsset }) {
 
           <button
             onClick={() => setResetModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-750 text-amber-400 text-xs font-semibold border border-white/5 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-750 text-amber-400 text-xs font-semibold border border-white/5 transition cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" /> Reset Sandbox ($100k)
           </button>
@@ -157,7 +203,7 @@ export default function PortfolioView({ onSelectAsset }) {
       <div className="flex items-center gap-2 border-b border-white/10 pb-2">
         <button
           onClick={() => setActiveSubTab('holdings')}
-          className={`py-2 px-4 rounded-xl text-xs font-bold transition ${
+          className={`py-2 px-4 rounded-xl text-xs font-bold transition cursor-pointer ${
             activeSubTab === 'holdings'
               ? 'bg-dark-800 text-brand-cyan border border-white/10 shadow-sm'
               : 'text-slate-400 hover:text-white'
@@ -167,7 +213,7 @@ export default function PortfolioView({ onSelectAsset }) {
         </button>
         <button
           onClick={() => setActiveSubTab('history')}
-          className={`py-2 px-4 rounded-xl text-xs font-bold transition ${
+          className={`py-2 px-4 rounded-xl text-xs font-bold transition cursor-pointer ${
             activeSubTab === 'history'
               ? 'bg-dark-800 text-brand-cyan border border-white/10 shadow-sm'
               : 'text-slate-400 hover:text-white'
@@ -200,37 +246,14 @@ export default function PortfolioView({ onSelectAsset }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {holdings.map((h) => {
-                    const isPos = h.unrealized_pnl_usd >= 0;
-                    return (
-                      <tr key={h.portfolio_id} className="hover:bg-dark-850/50 transition">
-                        <td className="p-3.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-white">{h.ticker}</span>
-                            <span className="text-slate-400 text-[10px] truncate max-w-[120px]">{h.asset_name}</span>
-                          </div>
-                        </td>
-                        <td className="p-3.5 text-slate-200 font-semibold">{Number(h.quantity).toLocaleString()}</td>
-                        <td className="p-3.5 text-slate-400">{formatMoney(h.average_buy_price_usd)}</td>
-                        <td className="p-3.5 text-white font-bold">{formatMoney(h.current_price_usd)}</td>
-                        <td className="p-3.5 text-slate-200 font-bold">{formatMoney(h.market_value_usd)}</td>
-                        <td className={`p-3.5 font-bold ${isPos ? 'text-brand-green' : 'text-brand-red'}`}>
-                          {isPos ? '+' : ''}{formatMoney(h.unrealized_pnl_usd)} ({isPos ? '+' : ''}{h.unrealized_pnl_percent}%)
-                        </td>
-                        <td className="p-3.5 text-right">
-                          <button
-                            onClick={() => {
-                              setSelectedTicker(h.ticker);
-                              if (onSelectAsset) onSelectAsset();
-                            }}
-                            className="py-1 px-3 rounded-lg bg-dark-800 hover:bg-dark-750 text-brand-cyan border border-white/10 hover:border-brand-cyan/40 text-[11px] font-bold transition cursor-pointer"
-                          >
-                            Trade
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {holdings.map((h) => (
+                    <HoldingRow
+                      key={h.portfolio_id}
+                      holding={h}
+                      formatMoney={formatMoney}
+                      onTrade={handleTradeClick}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -261,21 +284,13 @@ export default function PortfolioView({ onSelectAsset }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {tradeHistory.map((o) => {
-                    const isBuy = o.side === 'BUY';
-                    const dateStr = new Date(o.timestamp).toLocaleTimeString();
-                    return (
-                      <tr key={o.id} className="hover:bg-dark-850/50">
-                        <td className="p-3.5 text-slate-500">{dateStr}</td>
-                        <td className={`p-3.5 font-bold ${isBuy ? 'text-brand-green' : 'text-brand-red'}`}>{o.side}</td>
-                        <td className="p-3.5 font-bold text-white">{o.ticker}</td>
-                        <td className="p-3.5 text-slate-300">{Number(o.quantity).toLocaleString()}</td>
-                        <td className="p-3.5 text-slate-300">{formatMoney(o.execution_price_usd)}</td>
-                        <td className="p-3.5 text-slate-200 font-bold">{formatMoney(o.total_usd)}</td>
-                        <td className="p-3.5 text-brand-green font-semibold">{o.status}</td>
-                      </tr>
-                    );
-                  })}
+                  {tradeHistory.map((o) => (
+                    <HistoryRow
+                      key={o.id}
+                      order={o}
+                      formatMoney={formatMoney}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -297,7 +312,7 @@ export default function PortfolioView({ onSelectAsset }) {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setResetModalOpen(false)}
-                className="flex-1 py-2 rounded-xl bg-dark-800 text-slate-300 text-xs font-semibold hover:bg-dark-750"
+                className="flex-1 py-2 rounded-xl bg-dark-800 text-slate-300 text-xs font-semibold hover:bg-dark-750 cursor-pointer"
               >
                 Cancel
               </button>
@@ -306,7 +321,7 @@ export default function PortfolioView({ onSelectAsset }) {
                   await resetSandbox();
                   setResetModalOpen(false);
                 }}
-                className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-dark-950 text-xs font-bold"
+                className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-dark-950 text-xs font-bold cursor-pointer"
               >
                 Confirm Reset
               </button>
@@ -317,4 +332,4 @@ export default function PortfolioView({ onSelectAsset }) {
 
     </div>
   );
-}
+});

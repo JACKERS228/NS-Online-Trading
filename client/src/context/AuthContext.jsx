@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { formatCurrencyValue } from '../utils/formatters';
 
 const AuthContext = createContext(null);
 
@@ -29,7 +30,6 @@ export function AuthProvider({ children }) {
         const data = await res.json();
         setNation(data.nation);
       } else {
-        // Token invalid or expired
         localStorage.removeItem('ns_trading_token');
         setToken(null);
         setNation(null);
@@ -46,7 +46,7 @@ export function AuthProvider({ children }) {
   }, [refreshProfile]);
 
   // Login or Register
-  const registerOrLogin = async ({ nationName, pin, currencyName, currencySymbol, usdExchangeRate }) => {
+  const registerOrLogin = useCallback(async ({ nationName, pin, currencyName, currencySymbol, usdExchangeRate }) => {
     try {
       const res = await fetch('/api/auth/register-or-login', {
         method: 'POST',
@@ -67,10 +67,10 @@ export function AuthProvider({ children }) {
     } catch (err) {
       throw err;
     }
-  };
+  }, []);
 
   // Update Currency Settings
-  const updateCurrencySettings = async ({ currencyName, currencySymbol, usdExchangeRate }) => {
+  const updateCurrencySettings = useCallback(async ({ currencyName, currencySymbol, usdExchangeRate }) => {
     try {
       const res = await fetch('/api/auth/update-currency', {
         method: 'POST',
@@ -91,10 +91,10 @@ export function AuthProvider({ children }) {
     } catch (err) {
       throw err;
     }
-  };
+  }, [token, refreshProfile]);
 
   // Reset Sandbox
-  const resetSandbox = async () => {
+  const resetSandbox = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/reset-sandbox', {
         method: 'POST',
@@ -113,71 +113,65 @@ export function AuthProvider({ children }) {
     } catch (err) {
       throw err;
     }
-  };
+  }, [token, refreshProfile]);
 
   // Logout
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('ns_trading_token');
     setToken(null);
     setNation(null);
-  };
+  }, []);
 
-  // Currency Formatter helper
+  // High-performance currency formatter helper
   const formatMoney = useCallback((usdAmount, options = {}) => {
-    const amount = Number(usdAmount) || 0;
-    const { 
-      forceUSD = false, 
-      showSymbol = true, 
-      maximumFractionDigits = 2, 
-      compact = false 
-    } = options;
-
-    if (forceUSD || !useNationalCurrency || !nation) {
-      // Format as USD Benchmark
-      const formatted = new Intl.NumberFormat('en-US', {
-        notation: compact && Math.abs(amount) >= 1000000 ? 'compact' : 'standard',
-        minimumFractionDigits: Math.abs(amount) < 1 ? 2 : 2,
-        maximumFractionDigits: Math.abs(amount) < 0.01 ? 4 : maximumFractionDigits
-      }).format(amount);
-
-      return showSymbol ? `$${formatted} USD` : `$${formatted}`;
-    }
-
-    // Convert to National Currency
-    const rate = nation.usd_exchange_rate || 1.0;
-    const nationalVal = amount * rate;
-    const symbol = nation.currency_symbol || '¤';
-
-    const formatted = new Intl.NumberFormat('en-US', {
-      notation: compact && Math.abs(nationalVal) >= 1000000 ? 'compact' : 'standard',
-      minimumFractionDigits: Math.abs(nationalVal) < 1 ? 2 : 2,
-      maximumFractionDigits: Math.abs(nationalVal) < 0.01 ? 4 : maximumFractionDigits
-    }).format(nationalVal);
-
-    return showSymbol ? `${symbol}${formatted} ${nation.currency_name || ''}`.trim() : `${symbol}${formatted}`;
+    const isUSD = options.forceUSD || !useNationalCurrency || !nation;
+    return formatCurrencyValue(usdAmount, {
+      rate: nation ? (Number(nation.usd_exchange_rate) || 1.0) : 1.0,
+      symbol: nation ? nation.currency_symbol : '$',
+      currencyName: nation ? nation.currency_name : '',
+      forceUSD: isUSD,
+      showSymbol: options.showSymbol !== false,
+      maximumFractionDigits: options.maximumFractionDigits || 2,
+      compact: options.compact || false
+    });
   }, [useNationalCurrency, nation]);
 
-  const formatRawUSD = (usdAmount) => {
+  const formatRawUSD = useCallback((usdAmount) => {
     return formatMoney(usdAmount, { forceUSD: true });
-  };
+  }, [formatMoney]);
+
+  const contextValue = useMemo(() => ({
+    nation,
+    token,
+    loading,
+    useNationalCurrency,
+    setUseNationalCurrency,
+    authModalOpen,
+    setAuthModalOpen,
+    registerOrLogin,
+    updateCurrencySettings,
+    resetSandbox,
+    logout,
+    refreshProfile,
+    formatMoney,
+    formatRawUSD
+  }), [
+    nation,
+    token,
+    loading,
+    useNationalCurrency,
+    authModalOpen,
+    registerOrLogin,
+    updateCurrencySettings,
+    resetSandbox,
+    logout,
+    refreshProfile,
+    formatMoney,
+    formatRawUSD
+  ]);
 
   return (
-    <AuthContext.Provider value={{
-      nation,
-      token,
-      loading,
-      useNationalCurrency,
-      setUseNationalCurrency,
-      authModalOpen,
-      setAuthModalOpen,
-      registerOrLogin,
-      updateCurrencySettings,
-      resetSandbox,
-      logout,
-      refreshProfile,
-      formatMoney,
-      formatRawUSD
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

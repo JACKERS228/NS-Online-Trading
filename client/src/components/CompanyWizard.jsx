@@ -1,14 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useMarket } from '../context/MarketContext';
 import { 
   Building2, Cpu, Shield, Zap, Wheat, HeartPulse, 
   Factory, Film, Gem, Rocket, Sparkles, CheckCircle2, 
-  ArrowRight, Info, Sliders, TrendingUp, DollarSign
+  ArrowRight, TrendingUp
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export default function CompanyWizard({ onCompanyCreated }) {
+const SECTORS = [
+  { id: 'Technology & AI', label: 'Technology & AI', icon: Cpu, desc: 'Quantum chips, autonomous systems, cloud grids' },
+  { id: 'Defense & Aerospace', label: 'Defense & Aerospace', icon: Shield, desc: 'Hypersonic munitions, naval defense, sovereign satellites' },
+  { id: 'Energy & Utilities', label: 'Energy & Utilities', icon: Zap, desc: 'Nuclear fusion, synthetic fuel, trans-national power' },
+  { id: 'Healthcare & Pharma', label: 'Healthcare & Pharma', icon: HeartPulse, desc: 'Bio-engineering, universal therapeutics, clinical research' },
+  { id: 'Agriculture & Food', label: 'Agriculture & Food', icon: Wheat, desc: 'Automated vertical farming, grain reserves, synthetic proteins' },
+  { id: 'Heavy Manufacturing', label: 'Heavy Manufacturing', icon: Factory, desc: 'Industrial robotics, naval shipyards, metallurgical refining' },
+  { id: 'Transport & Space', label: 'Transport & Space', icon: Rocket, desc: 'Orbital haulers, maglev transit, sub-orbital freight' },
+  { id: 'Luxury Goods', label: 'Luxury Goods', icon: Gem, desc: 'High-end horology, haute couture, sovereign reserves' },
+  { id: 'Media & Entertainment', label: 'Media & Entertainment', icon: Film, desc: 'Holographic broadcast, neural streaming, global press' },
+];
+
+const SCALE_LABELS = {
+  1: { name: 'Startup / Micro-Cap', range: '~$15M Cap', desc: 'Agile early-stage firm with exponential growth potential' },
+  2: { name: 'Small Enterprise', range: '~$75M Cap', desc: 'Established regional commercial player with solid momentum' },
+  3: { name: 'Mid-Cap Corporation', range: '~$500M Cap', desc: 'Major institutional producer with strong national market share' },
+  4: { name: 'Large-Cap Conglomerate', range: '~$5B Cap', desc: 'Pillar of national industry with immense operational capacity' },
+  5: { name: 'Sovereign MegaCorp', range: '~$45B+ Cap', desc: 'Multi-national titan dominating entire economic sectors' },
+};
+
+const PROFIT_LABELS = {
+  1: { name: 'Speculative / Cash Burn', desc: 'Aggressive R&D spending, currently running operational losses' },
+  2: { name: 'Early Traction', desc: 'Approaching cash flow breakeven with emerging product-market fit' },
+  3: { name: 'Steady Profit Margins', desc: 'Dependable consistent quarterly profitability (+12% margins)' },
+  4: { name: 'High Cash Flow Generator', desc: 'Exceptional pricing power delivering rich operational cash flow' },
+  5: { name: 'Market Monopoly', desc: 'Unmatched industry dominance with fortress balance sheets (+35% margin)' },
+};
+
+const VOLATILITY_LABELS = {
+  1: { name: 'Conservative Blue-Chip', desc: 'Extremely stable, low fluctuation, defensive dividend focus' },
+  2: { name: 'Balanced Defensive', desc: 'Modest market beta, resilient across macroeconomic downturns' },
+  3: { name: 'Moderate Growth', desc: 'Standard market correlation with dynamic response to quarterly news' },
+  4: { name: 'High-Beta Growth', desc: 'Amplified price swings with substantial momentum runs' },
+  5: { name: 'Speculative Moonshot', desc: 'Extreme volatility, rapid rallies, and sharp speculative corrections' },
+};
+
+// Pure client-side high-speed valuation engine
+function computeValuation(sector, scaleTier, profitabilityTier, volatilityTier, publicFloatPercent) {
+  const scaleCaps = { 1: 15000000, 2: 75000000, 3: 500000000, 4: 5000000000, 5: 45000000000 };
+  const profitMultipliers = { 1: 0.65, 2: 0.85, 3: 1.05, 4: 1.35, 5: 1.75 };
+  const volatilityValues = { 1: 0.025, 2: 0.040, 3: 0.065, 4: 0.095, 5: 0.140 };
+
+  const sectorDividendBase = {
+    'Energy & Utilities': 0.048,
+    'Defense & Aerospace': 0.035,
+    'Healthcare & Pharma': 0.028,
+    'Agriculture & Food': 0.038,
+    'Heavy Manufacturing': 0.032,
+    'Technology & AI': 0.012,
+    'Media & Entertainment': 0.020,
+    'Luxury Goods': 0.025,
+    'Transport & Space': 0.022
+  };
+
+  const baseCap = scaleCaps[scaleTier] || scaleCaps[3];
+  const mult = profitMultipliers[profitabilityTier] || 1.0;
+  const marketCapUsd = +(baseCap * mult).toFixed(2);
+
+  const targetSharePrice = +(15 + (scaleTier * 12) + (profitabilityTier * 6)).toFixed(2);
+  const sharesOutstanding = Math.floor(marketCapUsd / targetSharePrice);
+  const floatPct = Math.max(10, Math.min(90, Number(publicFloatPercent) || 50));
+  const sharesFloat = Math.floor(sharesOutstanding * (floatPct / 100));
+
+  const baseDiv = sectorDividendBase[sector] || 0.025;
+  const divYield = profitabilityTier >= 3 ? +(baseDiv * (profitabilityTier / 3)).toFixed(4) : 0;
+  const healthScore = Math.min(100, Math.max(10, (profitabilityTier * 16) + (scaleTier * 4)));
+  const vol = volatilityValues[volatilityTier] || 0.065;
+  const initialVolume24h = Math.floor(sharesFloat * 0.08);
+
+  return {
+    initialPriceUsd: targetSharePrice,
+    marketCapUsd,
+    sharesOutstanding,
+    sharesFloat,
+    floatPercent: floatPct,
+    volatility: vol,
+    dividendYield: divYield,
+    healthScore,
+    estimatedVolume24h: initialVolume24h
+  };
+}
+
+export default React.memo(function CompanyWizard({ onCompanyCreated }) {
   const { nation, formatMoney, formatRawUSD, refreshProfile, setAuthModalOpen } = useAuth();
   const { setSelectedTicker } = useMarket();
 
@@ -17,92 +99,25 @@ export default function CompanyWizard({ onCompanyCreated }) {
   const [ticker, setTicker] = useState('');
   const [sector, setSector] = useState('Technology & AI');
   const [description, setDescription] = useState('');
-  const [scaleTier, setScaleTier] = useState(3); // 1 to 5
-  const [profitabilityTier, setProfitabilityTier] = useState(3); // 1 to 5
-  const [volatilityTier, setVolatilityTier] = useState(3); // 1 to 5
-  const [publicFloatPercent, setPublicFloatPercent] = useState(60); // 10 to 90%
-
-  // Live Preview Calculation State
-  const [metrics, setMetrics] = useState({
-    initialPriceUsd: 54.00,
-    marketCapUsd: 525000000,
-    sharesOutstanding: 9722222,
-    sharesFloat: 5833333,
-    floatPercent: 60,
-    volatility: 0.065,
-    dividendYield: 0.025,
-    healthScore: 60,
-    estimatedVolume24h: 466666
-  });
+  const [scaleTier, setScaleTier] = useState(3);
+  const [profitabilityTier, setProfitabilityTier] = useState(3);
+  const [volatilityTier, setVolatilityTier] = useState(3);
+  const [publicFloatPercent, setPublicFloatPercent] = useState(60);
 
   const [loading, setLoading] = useState(false);
   const [successResult, setSuccessResult] = useState(null);
   const [error, setError] = useState('');
 
-  const sectors = [
-    { id: 'Technology & AI', label: 'Technology & AI', icon: Cpu, desc: 'Quantum chips, autonomous systems, cloud grids' },
-    { id: 'Defense & Aerospace', label: 'Defense & Aerospace', icon: Shield, desc: 'Hypersonic munitions, naval defense, sovereign satellites' },
-    { id: 'Energy & Utilities', label: 'Energy & Utilities', icon: Zap, desc: 'Nuclear fusion, synthetic fuel, trans-national power' },
-    { id: 'Healthcare & Pharma', label: 'Healthcare & Pharma', icon: HeartPulse, desc: 'Bio-engineering, universal therapeutics, clinical research' },
-    { id: 'Agriculture & Food', label: 'Agriculture & Food', icon: Wheat, desc: 'Automated vertical farming, grain reserves, synthetic proteins' },
-    { id: 'Heavy Manufacturing', label: 'Heavy Manufacturing', icon: Factory, desc: 'Industrial robotics, naval shipyards, metallurgical refining' },
-    { id: 'Transport & Space', label: 'Transport & Space', icon: Rocket, desc: 'Orbital haulers, maglev transit, sub-orbital freight' },
-    { id: 'Luxury Goods', label: 'Luxury Goods', icon: Gem, desc: 'High-end horology, haute couture, sovereign reserves' },
-    { id: 'Media & Entertainment', label: 'Media & Entertainment', icon: Film, desc: 'Holographic broadcast, neural streaming, global press' },
-  ];
-
-  const scaleLabels = {
-    1: { name: 'Startup / Micro-Cap', range: '~$15M Cap', desc: 'Agile early-stage firm with exponential growth potential' },
-    2: { name: 'Small Enterprise', range: '~$75M Cap', desc: 'Established regional commercial player with solid momentum' },
-    3: { name: 'Mid-Cap Corporation', range: '~$500M Cap', desc: 'Major institutional producer with strong national market share' },
-    4: { name: 'Large-Cap Conglomerate', range: '~$5B Cap', desc: 'Pillar of national industry with immense operational capacity' },
-    5: { name: 'Sovereign MegaCorp', range: '~$45B+ Cap', desc: 'Multi-national titan dominating entire economic sectors' },
-  };
-
-  const profitLabels = {
-    1: { name: 'Speculative / Cash Burn', desc: 'Aggressive R&D spending, currently running operational losses' },
-    2: { name: 'Early Traction', desc: 'Approaching cash flow breakeven with emerging product-market fit' },
-    3: { name: 'Steady Profit Margins', desc: 'Dependable consistent quarterly profitability (+12% margins)' },
-    4: { name: 'High Cash Flow Generator', desc: 'Exceptional pricing power delivering rich operational cash flow' },
-    5: { name: 'Market Monopoly', desc: 'Unmatched industry dominance with fortress balance sheets (+35% margin)' },
-  };
-
-  const volatilityLabels = {
-    1: { name: 'Conservative Blue-Chip', desc: 'Extremely stable, low fluctuation, defensive dividend focus' },
-    2: { name: 'Balanced Defensive', desc: 'Modest market beta, resilient across macroeconomic downturns' },
-    3: { name: 'Moderate Growth', desc: 'Standard market correlation with dynamic response to quarterly news' },
-    4: { name: 'High-Beta Growth', desc: 'Amplified price swings with substantial momentum runs' },
-    5: { name: 'Speculative Moonshot', desc: 'Extreme volatility, rapid rallies, and sharp speculative corrections' },
-  };
-
-  // Recalculate metrics on slider changes
-  useEffect(() => {
-    async function fetchPreview() {
-      try {
-        const res = await fetch('/api/wizard/company/preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sector,
-            scaleTier,
-            profitabilityTier,
-            volatilityTier,
-            publicFloatPercent
-          })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setMetrics(data);
-        }
-      } catch (err) {
-        console.error('Error fetching preview:', err);
-      }
-    }
-    fetchPreview();
+  // Instant pure client-side math computation (<0.001ms, 0 network lag)
+  const metrics = useMemo(() => {
+    return computeValuation(sector, scaleTier, profitabilityTier, volatilityTier, publicFloatPercent);
   }, [sector, scaleTier, profitabilityTier, volatilityTier, publicFloatPercent]);
 
+  const founderShares = metrics.sharesOutstanding - metrics.sharesFloat;
+  const founderEquityValueUsd = +(founderShares * metrics.initialPriceUsd).toFixed(2);
+
   // Handle IPO Launch
-  const handleLaunchIPO = async (e) => {
+  const handleLaunchIPO = useCallback(async (e) => {
     e.preventDefault();
     if (!nation) {
       setAuthModalOpen(true);
@@ -137,7 +152,6 @@ export default function CompanyWizard({ onCompanyCreated }) {
         throw new Error(data.error || 'Failed to launch IPO');
       }
 
-      // Trigger Confetti Celebration
       confetti({
         particleCount: 120,
         spread: 70,
@@ -151,10 +165,7 @@ export default function CompanyWizard({ onCompanyCreated }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const founderShares = metrics.sharesOutstanding - metrics.sharesFloat;
-  const founderEquityValueUsd = +(founderShares * metrics.initialPriceUsd).toFixed(2);
+  }, [nation, name, ticker, sector, description, scaleTier, profitabilityTier, volatilityTier, publicFloatPercent, refreshProfile, setAuthModalOpen]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -289,7 +300,7 @@ export default function CompanyWizard({ onCompanyCreated }) {
                 Industry Sector
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {sectors.map((s) => {
+                {SECTORS.map((s) => {
                   const Icon = s.icon;
                   const isSelected = sector === s.id;
                   return (
@@ -326,7 +337,7 @@ export default function CompanyWizard({ onCompanyCreated }) {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-slate-300">Enterprise Scale Tier:</span>
-                <span className="font-bold text-brand-cyan font-mono">{scaleLabels[scaleTier].name} ({scaleLabels[scaleTier].range})</span>
+                <span className="font-bold text-brand-cyan font-mono">{SCALE_LABELS[scaleTier].name} ({SCALE_LABELS[scaleTier].range})</span>
               </div>
               <input
                 type="range"
@@ -337,14 +348,14 @@ export default function CompanyWizard({ onCompanyCreated }) {
                 onChange={(e) => setScaleTier(Number(e.target.value))}
                 className="w-full accent-brand-cyan cursor-pointer"
               />
-              <p className="text-[11px] text-slate-400">{scaleLabels[scaleTier].desc}</p>
+              <p className="text-[11px] text-slate-400">{SCALE_LABELS[scaleTier].desc}</p>
             </div>
 
             {/* Profitability Slider */}
             <div className="space-y-2 pt-2 border-t border-white/5">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-slate-300">Profitability & Margin Strength:</span>
-                <span className="font-bold text-brand-green font-mono">{profitLabels[profitabilityTier].name}</span>
+                <span className="font-bold text-brand-green font-mono">{PROFIT_LABELS[profitabilityTier].name}</span>
               </div>
               <input
                 type="range"
@@ -355,7 +366,7 @@ export default function CompanyWizard({ onCompanyCreated }) {
                 onChange={(e) => setProfitabilityTier(Number(e.target.value))}
                 className="w-full accent-brand-green cursor-pointer"
               />
-              <p className="text-[11px] text-slate-400">{profitLabels[profitabilityTier].desc}</p>
+              <p className="text-[11px] text-slate-400">{PROFIT_LABELS[profitabilityTier].desc}</p>
             </div>
           </div>
 
@@ -370,7 +381,7 @@ export default function CompanyWizard({ onCompanyCreated }) {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-slate-300">Market Volatility / Beta Factor:</span>
-                <span className="font-bold text-purple-400 font-mono">{volatilityLabels[volatilityTier].name}</span>
+                <span className="font-bold text-purple-400 font-mono">{VOLATILITY_LABELS[volatilityTier].name}</span>
               </div>
               <input
                 type="range"
@@ -381,7 +392,7 @@ export default function CompanyWizard({ onCompanyCreated }) {
                 onChange={(e) => setVolatilityTier(Number(e.target.value))}
                 className="w-full accent-purple-500 cursor-pointer"
               />
-              <p className="text-[11px] text-slate-400">{volatilityLabels[volatilityTier].desc}</p>
+              <p className="text-[11px] text-slate-400">{VOLATILITY_LABELS[volatilityTier].desc}</p>
             </div>
 
             {/* Public Float % Slider */}
@@ -498,4 +509,4 @@ export default function CompanyWizard({ onCompanyCreated }) {
 
     </div>
   );
-}
+});

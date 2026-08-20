@@ -1,14 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useMarket } from '../context/MarketContext';
 import { 
   TrendingUp, Building2, Coins, Package, Briefcase, 
   Globe2, Newspaper, Settings, LogIn, LogOut, RotateCcw, 
-  Check, ChevronDown, DollarSign, Activity, Radio
+  ChevronDown, DollarSign, Activity, Radio
 } from 'lucide-react';
 import CurrencySettingsModal from './CurrencySettingsModal';
 
-export default function Header({ activeTab, setActiveTab }) {
+const TickerTapeItem = React.memo(function TickerTapeItem({ asset, flash, onSelect }) {
+  const chg = asset.change_24h !== undefined ? Number(asset.change_24h) : 0;
+  const isPos = chg >= 0;
+
+  return (
+    <button
+      onClick={() => onSelect(asset.ticker)}
+      className={`flex items-center gap-2 px-2 py-0.5 rounded transition hover:bg-dark-800 cursor-pointer ${
+        flash === 'up' ? 'bg-brand-green/20 text-brand-green' : flash === 'down' ? 'bg-brand-red/20 text-brand-red' : 'text-slate-300'
+      }`}
+    >
+      <span className="font-bold text-white">{asset.ticker}</span>
+      <span className="font-medium">${Number(asset.current_price_usd).toFixed(2)}</span>
+      <span className={`text-[10px] font-semibold ${isPos ? 'text-brand-green' : 'text-brand-red'}`}>
+        {isPos ? '+' : ''}{chg.toFixed(2)}%
+      </span>
+    </button>
+  );
+});
+
+export default React.memo(function Header({ activeTab, setActiveTab }) {
   const { 
     nation, 
     useNationalCurrency, 
@@ -19,13 +39,18 @@ export default function Header({ activeTab, setActiveTab }) {
     formatMoney 
   } = useAuth();
 
-  const { assets, priceFlashMap, connectionStatus, setSelectedTicker } = useMarket();
+  const { assets, priceFlashMap, setSelectedTicker } = useMarket();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
-  const handleReset = async () => {
+  const handleTickerSelect = useCallback((ticker) => {
+    setSelectedTicker(ticker);
+    setActiveTab('terminal');
+  }, [setSelectedTicker, setActiveTab]);
+
+  const handleReset = useCallback(async () => {
     try {
       await resetSandbox();
       setConfirmResetOpen(false);
@@ -33,7 +58,7 @@ export default function Header({ activeTab, setActiveTab }) {
     } catch (err) {
       alert('Failed to reset sandbox: ' + err.message);
     }
-  };
+  }, [resetSandbox]);
 
   const tabs = [
     { id: 'terminal', label: 'Trading Desk', icon: TrendingUp },
@@ -55,30 +80,14 @@ export default function Header({ activeTab, setActiveTab }) {
         </div>
 
         <div className="flex items-center gap-6 shrink-0">
-          {assets.map((asset) => {
-            const chg = asset.change_24h !== undefined ? Number(asset.change_24h) : 0;
-            const isPos = chg >= 0;
-            const flash = priceFlashMap[asset.ticker];
-
-            return (
-              <button
-                key={asset.id}
-                onClick={() => {
-                  setSelectedTicker(asset.ticker);
-                  setActiveTab('terminal');
-                }}
-                className={`flex items-center gap-2 px-2 py-0.5 rounded transition hover:bg-dark-800 ${
-                  flash === 'up' ? 'bg-brand-green/20 text-brand-green' : flash === 'down' ? 'bg-brand-red/20 text-brand-red' : 'text-slate-300'
-                }`}
-              >
-                <span className="font-bold text-white">{asset.ticker}</span>
-                <span className="font-medium">${Number(asset.current_price_usd).toFixed(2)}</span>
-                <span className={`text-[10px] font-semibold ${isPos ? 'text-brand-green' : 'text-brand-red'}`}>
-                  {isPos ? '+' : ''}{chg.toFixed(2)}%
-                </span>
-              </button>
-            );
-          })}
+          {assets.map((asset) => (
+            <TickerTapeItem
+              key={asset.id}
+              asset={asset}
+              flash={priceFlashMap[asset.ticker]}
+              onSelect={handleTickerSelect}
+            />
+          ))}
         </div>
       </div>
 
@@ -285,4 +294,4 @@ export default function Header({ activeTab, setActiveTab }) {
       )}
     </header>
   );
-}
+});
